@@ -1,0 +1,19 @@
+{
+  "name": "pkm-server",
+  "private": true,
+  "version": "0.1.0",
+  "description": "PKM v1 — Markdown-first personal knowledge management",
+  "scripts": {
+    "dev": "pnpm --filter @pkm/web dev & pnpm --filter @pkm/api dev",
+    "build": "pnpm -r build",
+    "test": "pnpm -r test",
+    "lint": "pnpm -r lint",
+    "typecheck": "pnpm -r typecheck",
+    "compose:up": "docker compose up -d --wait",
+    "compose:down": "docker compose down -v"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3"
+  },
+  "packageManager": "pnpm@11.21.0"
+}
