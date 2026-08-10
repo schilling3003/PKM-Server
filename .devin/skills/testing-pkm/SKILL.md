@@ -1,6 +1,6 @@
 ---
 name: testing-pkm
- description: How to boot and verify the PKM v1 walking skeleton local stack.
+description: How to boot and verify the PKM v1 walking skeleton local stack.
 ---
 
 # Testing the PKM v1 walking skeleton
