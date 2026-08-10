@@ -8,3 +8,5 @@ dist
 coverage
 .vscode
 *.local
+__pycache__
+*.pyc
