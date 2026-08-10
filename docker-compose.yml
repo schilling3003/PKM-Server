@@ -2,15 +2,15 @@ services:
   postgres:
     image: pgvector/pgvector:pg16
     environment:
-      POSTGRES_USER: pkm
-      POSTGRES_PASSWORD: pkm
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: pkm
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U pkm -d pkm"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d pkm"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -31,8 +31,8 @@ services:
     image: minio/minio
     command: server /data --console-address ":9001"
     environment:
-      MINIO_ROOT_USER: minioadmin
-      MINIO_ROOT_PASSWORD: minioadmin
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
     ports:
       - "9000:9000"
       - "9001:9001"
@@ -49,8 +49,8 @@ services:
     environment:
       DB: postgres12
       POSTGRES_SEEDS: postgres
-      POSTGRES_USER: pkm
-      POSTGRES_PWD: pkm
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PWD: ${POSTGRES_PASSWORD}
       POSTGRES_TLS_ENABLED: "false"
       DBNAME: temporal
       VISIBILITY_DBNAME: temporal_visibility

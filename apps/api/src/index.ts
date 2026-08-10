@@ -14,7 +14,10 @@ const app = Fastify({ logger: true });
 await app.register(cors, { origin: process.env.WEB_URL || '*' });
 
 const pgClient = new Client({ connectionString: databaseUrl });
+pgClient.on('error', (err) => app.log.warn({ msg: 'postgres client error', error: err.message }));
+
 const redisClient = createClient({ url: redisUrl });
+redisClient.on('error', (err) => app.log.warn({ msg: 'redis client error', error: err.message }));
 
 async function checkPostgres() {
   const start = performance.now();
