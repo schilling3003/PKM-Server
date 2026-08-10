@@ -19,4 +19,8 @@ port 3000.
 `docs/WORKSTREAMS.md`, `docs/GAUNTLET_LOG.md`; initialized monorepo,
 Docker Compose, and migration.
 **Regressions**: None.
+**Round 0.1 — fixes after critic review**: Added Redis/Postgres client
+error listeners; moved local dev credentials from `docker-compose.yml`
+into `.env` populated from `.env.example`; re-verified health checks and
+clean shutdown.
 **Blockers**: None.
