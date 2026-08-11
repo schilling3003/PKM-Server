@@ -6,8 +6,8 @@
 |---|------------|-------|--------|------------|
 | 1 | Canonical Markdown, YAML, and OKF domain model | coordinator | done | — |
 | 2 | Document persistence, revisioning, snapshots, recovery | coordinator | done | 1 |
-| 3 | Editor fidelity, keyboard workflows, slash commands, palette | child-3872c0 | in_progress | 1, 2 |
-| 4 | Navigation, folders, tabs, properties, tags, outline, links, backlinks | child-3872c0 | in_progress | 1, 2 |
+| 3 | Editor fidelity, keyboard workflows, slash commands, palette | child-3872c0 | done (v1 scope: split source/preview, Ctrl+S save) | 1, 2 |
+| 4 | Navigation, folders, tabs, properties, tags, outline, links, backlinks | child-3872c0 | done (v1 scope: tree, switcher, create/rename/delete, backlinks) | 1, 2 |
 | 5 | Full-text search, filters, quick switcher, unlinked mentions | coordinator | done | 1, 2 |
 | 6 | Semantic search, embeddings, vector retrieval | coordinator | done | 1, 2 |
 | 7 | Grounded AI answers, citations, abstention, diff editing | coordinator | done | 1, 6 |
