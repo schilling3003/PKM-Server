@@ -65,7 +65,7 @@ clean shutdown.
 - Added reserved-filename guard in `documents.createDocument`/`updateDocument` so the regular document API cannot create `index.md`/`log.md` concepts.
 - Hardened `/search` `limit` validation, `MarkdownLink` external scheme allowlist, `handleSave` state sync, and `document_links.target_path` updates on rename.
 **Evidence**: `pnpm -r build`, `pnpm -r typecheck`, `pnpm -r lint`, and `pnpm -r test` pass; Docker Compose stack healthy; `curl` verifies auth login/logout, workspace create with membership, document CRUD, search, `/ask`, OKF round-trip with `index.md`/`log.md`, attachments upload/list, and workspace isolation; `curl` confirms non-members are rejected.
-**Decisive gap**: None identified after critic fixes; a fresh critic/tester pass is the next gate.
-**Changes**: `apps/api/src/app.ts`, `apps/api/src/auth.ts`, `apps/api/src/middleware/auth.ts`, `apps/api/src/attachments.ts`, `apps/api/src/index.ts`, `apps/api/src/documents.ts`, `apps/api/src/okf.ts`, `apps/api/src/workspaces.ts`, `apps/web/app/layout.tsx`, `apps/web/app/workspaces/[id]/page.tsx`, `docs/GAUNTLET_LOG.md`, `docs/WORKSTREAMS.md`, `docs/DECISIONS.md`.
+**Decisive gap**: Round 0.4 critic identified that `/attachments/:id` routes bypassed the `/workspaces/*` auth pre-handler, allowing unauthenticated/non-member downloads and deletes. Fixed by adding an `/attachments/:id?workspaceId=...` branch to the auth pre-handler and added an `auth.test.ts` case. A fresh critic/tester pass is the next gate.
+**Changes**: `apps/api/src/app.ts`, `apps/api/src/auth.ts`, `apps/api/src/middleware/auth.ts`, `apps/api/src/attachments.ts`, `apps/api/src/index.ts`, `apps/api/src/documents.ts`, `apps/api/src/okf.ts`, `apps/api/src/workspaces.ts`, `apps/api/test/auth.test.ts`, `apps/web/app/layout.tsx`, `apps/web/app/workspaces/[id]/page.tsx`, `docs/GAUNTLET_LOG.md`, `docs/WORKSTREAMS.md`, `docs/DECISIONS.md`.
 **Regressions**: None.
 **Blockers**: None.
