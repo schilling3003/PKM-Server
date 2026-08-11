@@ -15,7 +15,7 @@ None beyond the local `.env` created from `.env.example`.
 4. `docker compose up -d --wait`
 5. Start AI: `cd apps/ai && python3 -m venv .venv && . .venv/bin/activate && pip install -r requirements.txt && uvicorn src.main:app --host 0.0.0.0 --port 8000`
 6. Start API: `pnpm --filter @pkm/api start`
-7. Start web: `pnpm --filter @pkm/web dev`
+7. Start web: `cd apps/web && env NEXT_BUILD_OUTPUT= pnpm start` (uses `next start` with the regular production build and source-based CSP).
 
 ## Content-Security-Policy
 `apps/web/proxy.ts` emits a source-based CSP (`default-src 'self'`, `script-src 'self' 'unsafe-inline'` with `'unsafe-eval'` in dev, `style-src 'self' 'unsafe-inline'`, `object-src 'none'`, `frame-ancestors 'none'`, and explicit `img-src`/`connect-src`/`font-src`). It should not block the UI. Verify the header with `curl -I http://localhost:3000/login` and the custom 404 with `curl -I http://localhost:3000/nonexistent`.
@@ -33,6 +33,19 @@ RATE_LIMIT_ATTACHMENTS_ACCOUNT_WINDOW_MS=2000
 ```
 Restart the API after changing `.env`.
 
+## Quality gates
+1. `pnpm -r typecheck`
+2. `pnpm -r lint`
+3. `pnpm -r build`
+4. `pnpm -r test`
+5. `pnpm audit --prod`
+6. `RUN_RESILIENCE_TESTS=1 pnpm --filter @pkm/api test test/resilience.test.ts`
+
+## Accessibility / performance / resilience gates
+- `pnpm --filter @pkm/web test:axe` (requires web on `http://localhost:3000` and API on `http://localhost:4000`; set `AXE_AUDIT_URL`, `AXE_API_URL`, and `PUPPETEER_EXECUTABLE_PATH` if needed).
+- `CHROME_PATH=/path/to/google-chrome pnpm --filter @pkm/web perf:page-load -- --url=http://localhost:3000/login --runs=2`
+- `pnpm --filter @pkm/api perf:search -- --count=1000 --queries=50`
+
 ## API golden-path sanity checks
 - `curl http://localhost:8000/health`
 - `curl http://localhost:4000/health`
@@ -41,7 +54,7 @@ Restart the API after changing `.env`.
 - `curl -s -b cookies.txt "http://localhost:4000/workspaces/{ws}/search?q=cat"`
 - `curl -s -b cookies.txt -X POST http://localhost:4000/workspaces/{ws}/attachments -F "file=@f.txt"` (third rapid upload should 429)
 - `curl -s -b cookies.txt "http://localhost:4000/workspaces/{ws}/okf/export"`
-- `curl -s -b cookies.txt -X POST http://localhost:4000/workspaces/{ws}/okf/import -d @okf.json`
+- `curl -s -b cookies.txt -X POST http://localhost:4000/workspaces/{ws}/okf/import -H 'Content-Type: application/json' -d '{"concepts":[{"path":"rabbit.md","metadata":{"type":"Concept"},"document":{"body":"A bunny. See [[cat|the cat]]."}}],"version":"0.2"}'`
 
 ## Notes
 - The workspace ID shown in the Next.js URL is the canonical one returned by the API; copy it from `GET /workspaces` if the UI is blocked.
@@ -49,3 +62,6 @@ Restart the API after changing `.env`.
 - The AI `/ask` endpoint returns an answer only when `LLM_BASE_URL` / `LLM_API_KEY` are configured; otherwise it returns a no-LLM warning with citations.
 - When starting `next start` in the background with `nohup`, use `env NEXT_BUILD_OUTPUT= pnpm --filter @pkm/web start` so the empty variable is passed correctly.
 - If small sidebar buttons (note-tree `dup`/`arch`, `Show archived`, right-sidebar `Restore`) do not respond to mouse clicks in the test harness, use keyboard `Tab`/`Enter` as a fallback.
+- The header Search button may not register mouse clicks in the harness; the shortcut `Ctrl+Shift+F` / `Cmd+Shift+F` opens the palette.
+- The `Logout` button may also need keyboard activation in the harness.
+- Kill stale processes before re-running: `pkill -f 'next-server|uvicorn|node dist/index.js|tsx'`.
