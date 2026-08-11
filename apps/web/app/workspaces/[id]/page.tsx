@@ -11,6 +11,9 @@ import FrontmatterPanel from './_components/FrontmatterPanel';
 import {
   createDocument,
   deleteDocument,
+  duplicateDocument,
+  archiveDocument,
+  restoreDocument,
   getDocument,
   getOutgoingLinks,
   getBacklinks,
@@ -258,6 +261,10 @@ export default function WorkspacePage() {
   const [unresolvedWikilinks, setUnresolvedWikilinks] = useState<string[]>([]);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const [showArchived, setShowArchived] = useState(false);
+  const [wikilinkQuery, setWikilinkQuery] = useState<string | null>(null);
+  const [wikilinkIndex, setWikilinkIndex] = useState(0);
+  const [unlinkedMentions, setUnlinkedMentions] = useState<Document[]>([]);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const newNotePathRef = useRef<string>('');
   const renamePathRef = useRef<string>('');
@@ -353,6 +360,7 @@ export default function WorkspacePage() {
           setOutgoingLinks([]);
           setBacklinks([]);
           setUnresolvedWikilinks([]);
+          setUnlinkedMentions([]);
           return null;
         }
         const wikiLinks = extractWikiLinks(stripFrontmatter(doc.content));
@@ -360,6 +368,17 @@ export default function WorkspacePage() {
           .map((l) => resolveWikiTarget(l.target))
           .filter((target) => !documents.some((d) => d.path === target));
         setUnresolvedWikilinks(Array.from(new Set(unresolved)));
+
+        const docBody = stripFrontmatter(doc.content).toLowerCase();
+        const docTitle = (doc.title ?? doc.path.split('/').pop() ?? doc.path).toLowerCase();
+        const mentions = documents.filter((d) => {
+          if (d.id === doc.id) return false;
+          const otherBody = stripFrontmatter(d.content).toLowerCase();
+          const title = (d.title ?? d.path.split('/').pop() ?? d.path).toLowerCase();
+          return otherBody.includes(docTitle) || docBody.includes(title);
+        });
+        setUnlinkedMentions(mentions);
+
         return Promise.all([getOutgoingLinks(workspaceId, doc.id), getBacklinks(workspaceId, doc.id)]);
       })
       .then((result) => {
@@ -406,6 +425,16 @@ export default function WorkspacePage() {
     saveRef.current = handleSave;
   }, [handleSave]);
 
+  // Autosave after the user pauses typing. The explicit Ctrl/Cmd+S shortcut is
+  // preserved in the keydown handler below.
+  useEffect(() => {
+    if (!isDirty || isSaving || !doc) return;
+    const timeout = setTimeout(() => {
+      saveRef.current();
+    }, 800);
+    return () => clearTimeout(timeout);
+  }, [isDirty, isSaving, doc, content]);
+
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 's') {
@@ -422,9 +451,10 @@ export default function WorkspacePage() {
   }, [isDirty]);
 
   const filteredDocuments = useMemo(() => {
-    if (!search.trim()) return documents;
+    const active = documents.filter((d) => !d.archived_at);
+    if (!search.trim()) return active;
     const q = search.toLowerCase();
-    return documents.filter(
+    return active.filter(
       (d) => (d.title ?? '').toLowerCase().includes(q) || d.path.toLowerCase().includes(q)
     );
   }, [documents, search]);
@@ -488,6 +518,34 @@ export default function WorkspacePage() {
         if (doc?.id === id) {
           router.push(`/workspaces/${workspaceId}`);
         }
+      })
+      .catch((e) => setError(String(e)));
+  }
+
+  function handleDuplicate(target: Document) {
+    duplicateDocument(workspaceId, target.id)
+      .then((d) => {
+        setDocuments((prev) => [...prev, d].sort((a, b) => a.path.localeCompare(b.path)));
+        router.push(`/workspaces/${workspaceId}?doc=${d.id}`);
+      })
+      .catch((e) => setError(String(e)));
+  }
+
+  function handleArchive(target: Document) {
+    archiveDocument(workspaceId, target.id)
+      .then((d) => {
+        setDocuments((prev) => prev.filter((doc) => doc.id !== d.id));
+        if (doc?.id === target.id) {
+          router.push(`/workspaces/${workspaceId}`);
+        }
+      })
+      .catch((e) => setError(String(e)));
+  }
+
+  function handleRestore(id: string) {
+    restoreDocument(workspaceId, id)
+      .then((d) => {
+        setDocuments((prev) => [...prev, d].sort((a, b) => a.path.localeCompare(b.path)));
       })
       .catch((e) => setError(String(e)));
   }
@@ -602,6 +660,24 @@ export default function WorkspacePage() {
           </button>
           <button
             type="button"
+            onClick={() => handleDuplicate(d)}
+            className="ml-1 rounded px-1 text-xs text-muted-foreground opacity-0 hover:bg-muted hover:text-foreground group-hover:opacity-100"
+            aria-label="Duplicate note"
+            title="Duplicate"
+          >
+            dup
+          </button>
+          <button
+            type="button"
+            onClick={() => handleArchive(d)}
+            className="ml-1 rounded px-1 text-xs text-muted-foreground opacity-0 hover:bg-muted hover:text-foreground group-hover:opacity-100"
+            aria-label="Archive note"
+            title="Archive"
+          >
+            arch
+          </button>
+          <button
+            type="button"
             onClick={() => {
               setRenameTarget(d);
               setRenamePath(d.path);
@@ -625,9 +701,64 @@ export default function WorkspacePage() {
     });
   }
 
+  const wikilinkCandidates = useMemo(() => {
+    if (!wikilinkQuery) return [];
+    const q = wikilinkQuery.toLowerCase();
+    return documents
+      .filter((d) => !d.archived_at)
+      .filter((d) => (d.title ?? '').toLowerCase().includes(q) || d.path.toLowerCase().includes(q))
+      .slice(0, 8);
+  }, [wikilinkQuery, documents]);
+
+  function insertWikilink(target: Document) {
+    const el = textareaRef.current;
+    if (!el || wikilinkQuery === null) return;
+    const start = el.selectionStart;
+    const textBefore = content.slice(0, start - wikilinkQuery.length);
+    const textAfter = content.slice(start);
+    const display = wikilinkQuery.trim();
+    const insertion = display ? `[[${target.path}|${display}]]` : `[[${target.path}]]`;
+    const newValue = `${textBefore}${insertion}${textAfter}`;
+    setContent(newValue);
+    setWikilinkQuery(null);
+    setIsDirty(true);
+    requestAnimationFrame(() => {
+      const pos = start - wikilinkQuery.length + insertion.length;
+      el.setSelectionRange(pos, pos);
+      el.focus();
+    });
+  }
+
   function onContentChange(value: string) {
     setContent(value);
     if (!isDirty) setIsDirty(true);
+    const el = textareaRef.current;
+    if (!el) return;
+    const before = value.slice(0, el.selectionStart);
+    const match = before.match(/\[\[([^\]]*)$/);
+    if (match) {
+      setWikilinkQuery(match[1]);
+      setWikilinkIndex(0);
+    } else {
+      setWikilinkQuery(null);
+    }
+  }
+
+  function handleTextareaKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+    if (wikilinkQuery === null) return;
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setWikilinkIndex((i) => (i + 1) % wikilinkCandidates.length);
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setWikilinkIndex((i) => (i - 1 + wikilinkCandidates.length) % wikilinkCandidates.length);
+    } else if (e.key === 'Enter' || e.key === 'Tab') {
+      e.preventDefault();
+      const candidate = wikilinkCandidates[wikilinkIndex];
+      if (candidate) insertWikilink(candidate);
+    } else if (e.key === 'Escape') {
+      setWikilinkQuery(null);
+    }
   }
 
   const headerTitle = doc ? doc.title ?? doc.path.split('/').pop() ?? doc.path : 'Select or create a note';
@@ -730,6 +861,44 @@ export default function WorkspacePage() {
             ) : (
               <div className="space-y-1">{renderTree(fileTree)}</div>
             )}
+            {documents.some((d) => d.archived_at) && (
+              <div className="mt-4 border-t border-border pt-2">
+                <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <input
+                    type="checkbox"
+                    checked={showArchived}
+                    onChange={(e) => setShowArchived(e.target.checked)}
+                    className="rounded border-border"
+                  />
+                  Show archived
+                </label>
+                {showArchived && (
+                  <ul className="mt-2 space-y-1">
+                    {documents
+                      .filter((d) => d.archived_at)
+                      .map((d) => (
+                        <li key={d.id} className="flex items-center justify-between rounded py-1 hover:bg-muted">
+                          <button
+                            type="button"
+                            onClick={() => navigateToDoc(d.id)}
+                            className="flex-1 truncate text-left text-sm text-muted-foreground"
+                            title={d.path}
+                          >
+                            {d.title ?? d.path.split('/').pop()}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleRestore(d.id)}
+                            className="ml-1 rounded px-1 text-xs text-primary hover:bg-muted"
+                          >
+                            restore
+                          </button>
+                        </li>
+                      ))}
+                  </ul>
+                )}
+              </div>
+            )}
           </nav>
         </aside>
 
@@ -823,14 +992,35 @@ export default function WorkspacePage() {
             <div className="flex flex-1 items-center justify-center text-muted-foreground">Loading note…</div>
           ) : doc ? (
             <div className="grid flex-1 grid-cols-1 divide-y divide-border overflow-hidden md:grid-cols-2 md:divide-x md:divide-y-0">
-              <textarea
-                ref={textareaRef}
-                value={content}
-                onChange={(e) => onContentChange(e.target.value)}
-                className="h-full w-full resize-none bg-card p-4 font-mono text-sm leading-relaxed text-foreground outline-none"
-                spellCheck={false}
-                aria-label="Markdown source"
-              />
+              <div className="relative h-full">
+                <textarea
+                  ref={textareaRef}
+                  value={content}
+                  onChange={(e) => onContentChange(e.target.value)}
+                  onKeyDown={handleTextareaKeyDown}
+                  className="h-full w-full resize-none bg-card p-4 font-mono text-sm leading-relaxed text-foreground outline-none"
+                  spellCheck={false}
+                  aria-label="Markdown source"
+                />
+                {wikilinkCandidates.length > 0 && (
+                  <div className="absolute bottom-4 left-4 z-20 w-64 rounded border border-border bg-popover shadow-lg">
+                    <ul className="max-h-48 overflow-auto py-1">
+                      {wikilinkCandidates.map((d, i) => (
+                        <li
+                          key={d.id}
+                          className={`cursor-pointer px-3 py-1.5 text-sm ${
+                            i === wikilinkIndex ? 'bg-accent text-accent-foreground' : 'text-foreground hover:bg-muted'
+                          }`}
+                          onClick={() => insertWikilink(d)}
+                          onMouseEnter={() => setWikilinkIndex(i)}
+                        >
+                          {d.title ?? d.path.split('/').pop()}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
               <div className="markdown-preview h-full overflow-auto bg-card p-4">
                 <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
                   {previewContent}
@@ -892,6 +1082,28 @@ export default function WorkspacePage() {
                           title={l.path}
                         >
                           {l.title ?? l.path.split('/').pop()}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </section>
+
+              <section>
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Unlinked mentions</h3>
+                {unlinkedMentions.length === 0 ? (
+                  <p className="mt-1 text-xs text-muted-foreground">No unlinked mentions.</p>
+                ) : (
+                  <ul className="mt-2 space-y-1">
+                    {unlinkedMentions.map((d) => (
+                      <li key={d.id}>
+                        <button
+                          type="button"
+                          onClick={() => navigateToDoc(d.id)}
+                          className="w-full truncate text-left text-sm text-primary hover:underline"
+                          title={d.path}
+                        >
+                          {d.title ?? d.path.split('/').pop()}
                         </button>
                       </li>
                     ))}

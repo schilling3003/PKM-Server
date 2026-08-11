@@ -17,6 +17,7 @@ export interface Document {
   content: string;
   frontmatter: Record<string, unknown>;
   content_hash: string;
+  archived_at: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -84,8 +85,8 @@ export async function createWorkspace(name: string): Promise<Workspace> {
   return handleResponse<Workspace>(res);
 }
 
-export async function listDocuments(workspaceId: string): Promise<Document[]> {
-  const res = await fetch(`${API_BASE}/workspaces/${workspaceId}/documents`);
+export async function listDocuments(workspaceId: string, includeArchived = true): Promise<Document[]> {
+  const res = await fetch(`${API_BASE}/workspaces/${workspaceId}/documents?includeArchived=${includeArchived ? 'true' : 'false'}`);
   return handleResponse<Document[]>(res);
 }
 
@@ -119,6 +120,21 @@ export async function updateDocument(
 export async function deleteDocument(workspaceId: string, id: string): Promise<void> {
   const res = await fetch(`${API_BASE}/workspaces/${workspaceId}/documents/${id}`, { method: 'DELETE' });
   await handleResponse<void>(res);
+}
+
+export async function duplicateDocument(workspaceId: string, id: string): Promise<Document> {
+  const res = await fetch(`${API_BASE}/workspaces/${workspaceId}/documents/${id}/duplicate`, { method: 'POST' });
+  return handleResponse<Document>(res);
+}
+
+export async function archiveDocument(workspaceId: string, id: string): Promise<Document> {
+  const res = await fetch(`${API_BASE}/workspaces/${workspaceId}/documents/${id}/archive`, { method: 'POST' });
+  return handleResponse<Document>(res);
+}
+
+export async function restoreDocument(workspaceId: string, id: string): Promise<Document> {
+  const res = await fetch(`${API_BASE}/workspaces/${workspaceId}/documents/${id}/restore`, { method: 'POST' });
+  return handleResponse<Document>(res);
 }
 
 export async function getBacklinks(workspaceId: string, documentId: string): Promise<Link[]> {

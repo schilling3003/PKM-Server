@@ -36,6 +36,7 @@ export interface DocumentRow {
   content: string;
   frontmatter: Record<string, unknown>;
   content_hash: string;
+  archived_at: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -58,18 +59,18 @@ function computeTitle(frontmatter: Record<string, unknown>, fallback: string): s
   return base;
 }
 
-export async function getWorkspaceDocuments(workspaceId: string): Promise<DocumentRow[]> {
-  const { rows } = await pool.query<DocumentRow>(
-    'SELECT id, workspace_id, path, title, content, frontmatter, content_hash, created_at, updated_at FROM documents WHERE workspace_id = $1 ORDER BY path',
-    [workspaceId]
-  );
+export async function getWorkspaceDocuments(workspaceId: string, includeArchived = false): Promise<DocumentRow[]> {
+  const sql = includeArchived
+    ? 'SELECT id, workspace_id, path, title, content, frontmatter, content_hash, archived_at, created_at, updated_at FROM documents WHERE workspace_id = $1 ORDER BY path'
+    : 'SELECT id, workspace_id, path, title, content, frontmatter, content_hash, archived_at, created_at, updated_at FROM documents WHERE workspace_id = $1 AND archived_at IS NULL ORDER BY path';
+  const { rows } = await pool.query<DocumentRow>(sql, [workspaceId]);
   return rows;
 }
 
 export async function getDocumentByPath(workspaceId: string, path: string): Promise<DocumentRow | null> {
   const normalized = normalizePath(path);
   const { rows } = await pool.query<DocumentRow>(
-    'SELECT id, workspace_id, path, title, content, frontmatter, content_hash, created_at, updated_at FROM documents WHERE workspace_id = $1 AND path = $2',
+    'SELECT id, workspace_id, path, title, content, frontmatter, content_hash, archived_at, created_at, updated_at FROM documents WHERE workspace_id = $1 AND path = $2',
     [workspaceId, normalized]
   );
   return rows[0] ?? null;
@@ -77,7 +78,7 @@ export async function getDocumentByPath(workspaceId: string, path: string): Prom
 
 export async function getDocument(workspaceId: string, documentId: string): Promise<DocumentRow | null> {
   const { rows } = await pool.query<DocumentRow>(
-    'SELECT id, workspace_id, path, title, content, frontmatter, content_hash, created_at, updated_at FROM documents WHERE workspace_id = $1 AND id = $2',
+    'SELECT id, workspace_id, path, title, content, frontmatter, content_hash, archived_at, created_at, updated_at FROM documents WHERE workspace_id = $1 AND id = $2',
     [workspaceId, documentId]
   );
   return rows[0] ?? null;
@@ -322,6 +323,65 @@ async function safeEmbedChunks(chunks: string[]): Promise<(number[] | null)[]> {
     console.warn('Embedding failed, continuing without vector index', err);
     return chunks.map(() => null);
   }
+}
+
+async function uniqueDuplicatePath(client: PoolClient, workspaceId: string, path: string): Promise<string> {
+  const base = path.replace(/\.md$/i, '');
+  let candidate = `${base} (copy).md`;
+  let counter = 2;
+  while (await getDocumentByPath(workspaceId, candidate)) {
+    candidate = `${base} (copy ${counter}).md`;
+    counter++;
+  }
+  return candidate;
+}
+
+export async function duplicateDocument(workspaceId: string, documentId: string): Promise<DocumentRow> {
+  const existing = await getDocument(workspaceId, documentId);
+  if (!existing) throw new Error('Document not found');
+
+  const parsed = parseDocumentContent(existing.content);
+  const chunks = generateChunks(parsed.body);
+  const chunkEmbeddings = await safeEmbedChunks(chunks);
+
+  return withTx(async (client) => {
+    const newPath = await uniqueDuplicatePath(client, workspaceId, existing.path);
+    const title = computeTitle(parsed.frontmatter, newPath);
+    const { rows } = await client.query<DocumentRow>(
+      `INSERT INTO documents (workspace_id, path, title, content, frontmatter, content_hash, search_vector)
+       VALUES ($1, $2, $3, $4, $5, $6, to_tsvector('english', coalesce($3, '') || ' ' || $4))
+       RETURNING id, workspace_id, path, title, content, frontmatter, content_hash, archived_at, created_at, updated_at`,
+      [workspaceId, newPath, title, existing.content, JSON.stringify(parsed.frontmatter), hashContent(existing.content)]
+    );
+    const document = rows[0];
+    await insertRevision(client, document.id, existing.content, document.content_hash);
+    await syncLinks(client, workspaceId, document.id, existing.content);
+    await resolveBacklinks(client, workspaceId, document.id, document.path);
+    await syncChunks(client, workspaceId, document.id, chunks, chunkEmbeddings, document.content_hash);
+    return document;
+  });
+}
+
+export async function archiveDocument(workspaceId: string, documentId: string): Promise<DocumentRow> {
+  const { rows } = await pool.query<DocumentRow>(
+    `UPDATE documents SET archived_at = now()
+     WHERE workspace_id = $1 AND id = $2
+     RETURNING id, workspace_id, path, title, content, frontmatter, content_hash, archived_at, created_at, updated_at`,
+    [workspaceId, documentId]
+  );
+  if (!rows[0]) throw new Error('Document not found');
+  return rows[0];
+}
+
+export async function restoreDocument(workspaceId: string, documentId: string): Promise<DocumentRow> {
+  const { rows } = await pool.query<DocumentRow>(
+    `UPDATE documents SET archived_at = NULL
+     WHERE workspace_id = $1 AND id = $2
+     RETURNING id, workspace_id, path, title, content, frontmatter, content_hash, archived_at, created_at, updated_at`,
+    [workspaceId, documentId]
+  );
+  if (!rows[0]) throw new Error('Document not found');
+  return rows[0];
 }
 
 async function withTx<T>(fn: (client: PoolClient) => Promise<T>): Promise<T> {

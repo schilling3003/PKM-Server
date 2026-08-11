@@ -47,7 +47,8 @@ export async function buildApp(options: { logger?: boolean } = {}) {
   // Documents
   app.get('/workspaces/:workspaceId/documents', async (req) => {
     const { workspaceId } = req.params as { workspaceId: string };
-    return documents.getWorkspaceDocuments(workspaceId);
+    const { includeArchived } = req.query as { includeArchived?: string };
+    return documents.getWorkspaceDocuments(workspaceId, includeArchived === 'true' || includeArchived === '1');
   });
 
   app.post('/workspaces/:workspaceId/documents', async (req, reply) => {
@@ -83,6 +84,24 @@ export async function buildApp(options: { logger?: boolean } = {}) {
     const { workspaceId, id } = req.params as { workspaceId: string; id: string };
     await documents.deleteDocument(workspaceId, id);
     reply.status(204).send();
+  });
+
+  app.post('/workspaces/:workspaceId/documents/:id/duplicate', async (req, reply) => {
+    const { workspaceId, id } = req.params as { workspaceId: string; id: string };
+    const doc = await documents.duplicateDocument(workspaceId, id);
+    reply.status(201).send(doc);
+  });
+
+  app.post('/workspaces/:workspaceId/documents/:id/archive', async (req, reply) => {
+    const { workspaceId, id } = req.params as { workspaceId: string; id: string };
+    const doc = await documents.archiveDocument(workspaceId, id);
+    return doc;
+  });
+
+  app.post('/workspaces/:workspaceId/documents/:id/restore', async (req, reply) => {
+    const { workspaceId, id } = req.params as { workspaceId: string; id: string };
+    const doc = await documents.restoreDocument(workspaceId, id);
+    return doc;
   });
 
   app.get('/workspaces/:workspaceId/documents/:id/revisions', async (req) => {
