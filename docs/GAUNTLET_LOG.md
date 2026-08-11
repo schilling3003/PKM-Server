@@ -156,4 +156,18 @@ clean shutdown.
 **Decisive gap**: The configurable LLM path has not been exercised against a live model; only the stub and mock are verified. This is acceptable for v1 when the operator has not configured a model.
 **Changes**: `apps/api/src/env.ts`, `apps/api/src/index.ts`, `apps/api/src/ask.ts`, `apps/api/src/ai.ts`, `apps/api/src/documents.ts`, `apps/api/test/setup.ts`, `apps/ai/src/main.py`, `apps/api/src/attachments.ts`, `packages/markdown/src/links.ts`, `packages/markdown/test/parser.test.ts`, `.env.example`, `docs/GAUNTLET_LOG.md`.
 **Regressions**: None.
+
+## Round 1.0 — Workstream 16: autosave, wikilink autocomplete, unlinked mentions, duplicate/archive/restore
+
+**Date**: 2026-08-11
+**Coordinator**: Devin
+**Verdict**: Implemented and merged into `devin/pkm-v1-search-ai`.
+- **Autosave**: The editor textarea debounces `onChange` for 800 ms and calls the existing save handler; the explicit Ctrl/Cmd+S shortcut remains; save status shows `Unsaved`/`Saving…`/saved state.
+- **Wikilink autocomplete**: Typing `[[` in the editor opens a floating candidate list of active notes filtered by the text after `[[`; Arrow keys, Enter/Tab, Escape, and click selection insert `[[path]]` or `[[path|alias]]`.
+- **Unlinked mentions**: The right sidebar lists other active notes whose body text contains the current note's title/path basename (case-insensitive).
+- **Duplicate / archive / restore**: `POST /workspaces/:workspaceId/documents/:id/duplicate` creates a copy with a unique `… (copy).md` path. `POST …/archive` sets `archived_at`; `POST …/restore` clears it. The file tree filters archived notes and shows a "Show archived" toggle with restore buttons. A `0004_archive.sql` migration adds `archived_at` to `documents`.
+**Evidence**: `pnpm -r build/typecheck/lint/test` pass; `curl` confirms duplicate, archive, active-only default list, and `includeArchived=true` restore list; UI smoke-tested in browser (register, create note, edit, autosave status, duplicate, archive, wikilink autocomplete, unlinked mentions panel).
+**Critic report**: Pending; round 0.8 critic and tester still running.
+**Changes**: `apps/api/src/documents.ts`, `apps/api/src/app.ts`, `apps/api/src/migrations/0004_archive.sql`, `apps/web/lib/api.ts`, `apps/web/app/workspaces/[id]/page.tsx`, `docs/WORKSTREAMS.md`.
+**Regressions**: None.
 **Blockers**: None.
