@@ -746,12 +746,9 @@ export default function WorkspacePage() {
   function onContentChange(value: string) {
     setContent(value);
     if (!isDirty) setIsDirty(true);
-    const el = textareaRef.current;
-    if (!el) return;
-    const before = value.slice(0, el.selectionStart);
-    const match = before.match(/\[\[([^\]]*)$/);
+    const match = value.match(/\[\[([^\]]*?)\s*$/);
     if (match) {
-      setWikilinkQuery(match[1]);
+      setWikilinkQuery(match[1].trim());
       setWikilinkIndex(0);
     } else {
       setWikilinkQuery(null);
@@ -1017,7 +1014,7 @@ export default function WorkspacePage() {
                   aria-label="Markdown source"
                 />
                 {wikilinkCandidates.length > 0 && (
-                  <div className="absolute bottom-4 left-4 z-20 w-64 rounded border border-border bg-popover shadow-lg">
+                  <div className="absolute left-4 top-16 z-20 w-64 rounded border border-border bg-popover shadow-lg">
                     <ul className="max-h-48 overflow-auto py-1">
                       {wikilinkCandidates.map((d, i) => (
                         <li

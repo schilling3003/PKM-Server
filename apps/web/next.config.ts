@@ -7,7 +7,7 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
-  output: 'standalone',
+  output: process.env.NEXT_BUILD_OUTPUT === 'standalone' ? 'standalone' : undefined,
   poweredByHeader: false,
   allowedDevOrigins: ['127.0.0.1', 'localhost'],
   async rewrites() {

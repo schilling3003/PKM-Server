@@ -20,6 +20,9 @@ None beyond the local `.env` created from `.env.example`.
 ## Content-Security-Policy
 `apps/web/proxy.ts` emits a source-based CSP (`default-src 'self'`, `script-src 'self' 'unsafe-inline'` with `'unsafe-eval'` in dev, `style-src 'self' 'unsafe-inline'`, `object-src 'none'`, `frame-ancestors 'none'`, and explicit `img-src`/`connect-src`/`font-src`). It should not block the UI. Verify the header with `curl -I http://localhost:3000/login` and the custom 404 with `curl -I http://localhost:3000/nonexistent`.
 
+## Production build caveat
+`apps/web/next.config.ts` uses `output: 'standalone'` only when `NEXT_BUILD_OUTPUT=standalone` is set. The Dockerfile sets it so the production image can run `apps/web/.next/standalone/apps/web/server.js`. For local verification, `pnpm --filter @pkm/web start` (which runs `next start`) serves the regular `.next` build and static chunks correctly. Kill any stale `next-server` processes before switching between `next start` and the standalone server.
+
 ## Rate-limit test setup
 Add to `.env` (temporary values for testing):
 ```

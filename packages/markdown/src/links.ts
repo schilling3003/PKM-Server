@@ -91,8 +91,10 @@ export function extractOutline(body: string): Heading[] {
 
 export function wikiToStandard(body: string): string {
   return body.replace(WIKILINK_RE, (_, target: string, alias?: string) => {
-    const url = encodeURI(`${target.trim()}.md`);
-    const text = alias ? alias.trim() : target.trim();
+    const rawTarget = target.trim();
+    const targetWithoutExt = rawTarget.replace(/\.md$/i, '');
+    const url = encodeURI(`${targetWithoutExt}.md`);
+    const text = alias ? alias.trim() : targetWithoutExt;
     return `[${text}](${url})`;
   });
 }

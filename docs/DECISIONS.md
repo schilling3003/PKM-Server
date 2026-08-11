@@ -228,3 +228,13 @@ different layout for that view.
 **Evidence**: `[[Project Ideas]]` and `[[project ideas]]` should resolve to the same `project ideas.md` note. `wikiToStandard` now percent-encodes spaces, and `standardToWiki` decodes them. Without case/URL normalization, graph edges and backlinks break when users capitalize titles differently or include spaces in filenames.
 
 **Reversibility**: High. The `document_links.target_path` column is a projection; re-normalizing can be re-run for existing rows.
+
+## AD-017: Conditional `output: 'standalone'` for Next.js builds
+
+**Decision**: Make `output: 'standalone'` in `apps/web/next.config.ts` conditional on the `NEXT_BUILD_OUTPUT=standalone` environment variable. The Dockerfile sets `NEXT_BUILD_OUTPUT=standalone` before `pnpm -r build`; local verification uses the regular `next start` path.
+
+**Alternatives**: Always build standalone and manually copy `.next/static` for `next start`; remove standalone and run `next start` in the Docker image; use a separate `next.config.docker.ts`.
+
+**Evidence**: Next.js 16.3.0 warns that `next start` does not work when `output: 'standalone'` is configured, because standalone output emits `server.js` and does not serve `_next/static` chunks via `next start`. Keeping `next start` usable for local golden-path testing (and for `pnpm --filter @pkm/web start`) while still producing a standalone image for Docker keeps both paths simple and does not require copying static assets manually.
+
+**Reversibility**: High. The change is a single `output` expression in `next.config.ts` and one `ENV` line in `apps/web/Dockerfile`.

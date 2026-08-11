@@ -249,3 +249,19 @@ clean shutdown.
 **Changes**: `apps/web/proxy.ts`, `apps/web/app/layout.tsx`, `docs/DECISIONS.md`, `docs/SECURITY.md`, `docs/GAUNTLET_LOG.md`.
 **Regressions**: None.
 **Blockers**: None.
+
+## Round 1.5 — `next start` static chunks, client hydration, and wikilink `.md` duplication
+
+**Date**: 2026-08-11
+**Coordinator**: Devin
+**Verdict**: Fixed the three release blockers reported by the round 0.9 end-to-end tester.
+- **`output: 'standalone'` prevented `next start` from serving `_next/static`**: `apps/web/next.config.ts` now sets `output` only when `NEXT_BUILD_OUTPUT=standalone`; `apps/web/Dockerfile` sets that variable before `pnpm -r build`, keeping the standalone production image while allowing `pnpm --filter @pkm/web start` (`next start`) to serve static chunks normally.
+- **Client components appeared non-interactive**: The tester was hitting a stale `next-server` process from an earlier standalone build and a password-manager overlay in the automated browser. After killing stale `next-server` processes and using a fresh build, login, workspace creation, the new-note dialog, the note editor, and the attachments page all accept keyboard input and update React state.
+- **Wikilink targets with `.md` duplicated the extension**: `packages/markdown/src/links.ts` now strips an existing `.md` extension before appending one and unit tests cover `[[dog.md]]` and `[[notes/Cat.md|cat]]`.
+- **Wikilink autocomplete dropdown was hidden**: The `onContentChange` handler now derives the query from the full editor value with a regex anchored at end-of-string, avoiding stale `selectionStart` during batched state updates. The dropdown is now absolutely positioned at the top-left of the editor so it is not clipped by the `overflow-hidden` split-pane container.
+- Added `--color-popover` / `--popover` CSS variables to `apps/web/app/globals.css` so the `bg-popover` dropdown background is distinct.
+**Evidence**: `pnpm -r build/typecheck/lint/test` pass; `pnpm audit --prod` clean; Docker Compose stack healthy; API and AI `/health` return `ok`; `curl` confirms document CRUD, OKF round-trip, and attachments; browser verifies `next start` login, workspace creation, note editor, `[[` wikilink autocomplete with Tab insertion, backlink update, and autosave.
+**Decisive gap**: None for this round.
+**Changes**: `packages/markdown/src/links.ts`, `packages/markdown/test/parser.test.ts`, `apps/web/next.config.ts`, `apps/web/Dockerfile`, `apps/web/app/globals.css`, `apps/web/app/workspaces/[id]/page.tsx`, `docs/DECISIONS.md`, `docs/SECURITY.md`, `docs/GAUNTLET_LOG.md`.
+**Regressions**: None.
+**Blockers**: None.

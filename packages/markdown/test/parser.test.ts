@@ -125,6 +125,17 @@ describe('wikiToStandard / standardToWiki', () => {
     expect(restored).toContain('[[Project Ideas|ideas]]');
     expect(restored).toContain('[[Goals]]');
   });
+
+  it('does not duplicate .md when target already has the extension', () => {
+    const body = 'See [[dog.md]] and [[notes/Cat.md|cat]]';
+    const standard = wikiToStandard(body);
+    expect(standard).toContain('[dog](dog.md)');
+    expect(standard).not.toContain('dog.md.md');
+    expect(standard).toContain('[cat](notes/Cat.md)');
+    const restored = standardToWiki(standard);
+    expect(restored).toContain('[[dog]]');
+    expect(restored).toContain('[[notes/Cat|cat]]');
+  });
 });
 
 describe('extractTags', () => {
