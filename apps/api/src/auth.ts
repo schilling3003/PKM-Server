@@ -1,5 +1,5 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
-import * as bcrypt from 'bcrypt';
+import * as bcrypt from 'bcryptjs';
 import cookie from '@fastify/cookie';
 import { z } from 'zod';
 import { randomUUID } from 'node:crypto';
@@ -10,6 +10,24 @@ import { createSessionBlocklist, SessionBlocklist } from './session-blocklist.js
 
 const SALT_ROUNDS = 12;
 const SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 7; // 7 days
+
+function hashPassword(password: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    bcrypt.hash(password, SALT_ROUNDS, (err, hash) => {
+      if (err) reject(err);
+      else resolve(hash);
+    });
+  });
+}
+
+function verifyPassword(password: string, hash: string): Promise<boolean> {
+  return new Promise((resolve, reject) => {
+    bcrypt.compare(password, hash, (err, result) => {
+      if (err) reject(err);
+      else resolve(result);
+    });
+  });
+}
 
 const authSchema = z.object({
   email: z.string().email().max(254).transform((v) => v.toLowerCase().trim()),
@@ -124,7 +142,7 @@ export async function registerAuthRoutes(
       return reply.status(409).send({ error: 'Email already registered' });
     }
 
-    const hash = await bcrypt.hash(body.password, SALT_ROUNDS);
+    const hash = await hashPassword(body.password);
     const { rows } = await query(
       'INSERT INTO users (email, password_hash) VALUES ($1, $2) RETURNING id, email, created_at',
       [body.email, hash]
@@ -146,7 +164,7 @@ export async function registerAuthRoutes(
     }
 
     const user = rows[0] as UserRow & { password_hash: string };
-    const valid = await bcrypt.compare(body.password, user.password_hash);
+    const valid = await verifyPassword(body.password, user.password_hash);
     if (!valid) {
       return reply.status(401).send({ error: 'Invalid credentials' });
     }

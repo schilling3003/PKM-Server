@@ -82,10 +82,10 @@ return {1, count + 1}`,
 
       return { allowed: true };
     } catch (err) {
-      // Fail open if Redis is unavailable so rate limiting does not become a hard outage.
-      // The health endpoint still reports Redis state.
-      console.warn('Rate limiter Redis error, allowing request', err);
-      return { allowed: true };
+      // Fall back to per-process memory limiting if Redis is unavailable.
+      // This avoids fail-open abuse while keeping the API usable in single-instance outages.
+      console.warn('Rate limiter Redis error, falling back to memory limiter', err);
+      return this.memoryCheck(key, maxRequests, windowMs);
     }
   }
 }

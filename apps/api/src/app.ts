@@ -13,7 +13,10 @@ import { importOkf, exportOkf } from './okf.js';
 const MAX_QUERY_LENGTH = 500;
 
 export async function buildApp(options: { logger?: boolean } = {}) {
-  const app = Fastify({ logger: options.logger ?? true });
+  const app = Fastify({
+    logger: options.logger ?? true,
+    trustProxy: process.env.TRUST_PROXY === 'true',
+  });
   await app.register(cors, { origin: process.env.WEB_URL || 'http://localhost:3000', credentials: true });
 
   // Workspaces

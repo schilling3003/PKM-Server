@@ -18,7 +18,7 @@
     "@pkm/markdown": "workspace:*",
     "@pkm/okf": "workspace:*",
     "@pkm/shared": "workspace:*",
-    "bcrypt": "5.1.1",
+    "bcryptjs": "^2.4.3",
     "dotenv": "^16.4.7",
     "fastify": "^5.2.1",
     "minio": "8.0.7",
@@ -28,7 +28,7 @@
     "zod": "^3.24.2"
   },
   "devDependencies": {
-    "@types/bcrypt": "5.0.2",
+    "@types/bcryptjs": "^2.4.6",
     "@types/node": "^20.19.43",
     "@types/pg": "^8.11.10",
     "tsx": "^4.19.2",

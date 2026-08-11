@@ -13,7 +13,7 @@ const apiOrigin = originFromUrl(process.env.API_BASE_URL, 'http://localhost:4000
 
 const csp = [
   "default-src 'self'",
-  "script-src 'self' 'unsafe-eval' 'unsafe-inline'",
+  "script-src 'self' 'unsafe-inline'",
   "style-src 'self' 'unsafe-inline'",
   `img-src 'self' ${s3Origin} data: blob:`,
   `connect-src 'self' ${apiOrigin}`,
