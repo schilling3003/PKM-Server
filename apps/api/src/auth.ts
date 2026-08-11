@@ -1,5 +1,5 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
-import * as bcrypt from 'bcryptjs';
+import bcrypt from 'bcryptjs';
 import cookie from '@fastify/cookie';
 import { z } from 'zod';
 import { randomUUID } from 'node:crypto';
