@@ -185,3 +185,18 @@ clean shutdown.
 **Changes**: `apps/api/src/documents.ts`, `apps/api/src/app.ts`, `apps/web/lib/api.ts`, `apps/web/app/workspaces/[id]/page.tsx`, `apps/api/test/integration.test.ts`, `docs/WORKSTREAMS.md`, `docs/GAUNTLET_LOG.md`.
 **Regressions**: None.
 **Blockers**: None.
+
+## Round 0.9 — Critic remediation from round 0.8
+
+**Date**: 2026-08-11
+**Coordinator**: Devin
+**Verdict**: Addressed the round 0.8 critic's release blockers and re-verified.
+- **Wikilink autocomplete**: Added `insertWikilink` in `packages/markdown` that removes the `[[` trigger, strips `.md` from the target path, and produces `[[target|alias]]` or `[[target]]`. `apps/web` now uses this helper; unit tests cover the previously-broken cases.
+- **Clean-checkout `pnpm -r typecheck`**: Pointed `types` in `packages/markdown`, `packages/okf`, and `packages/shared` to `./src/index.ts` so dependent packages resolve source types before `dist` is built.
+- **Semantic embeddings**: `apps/ai/src/main.py` `/embed` now supports `EMBEDDING_PROVIDER` (`sentence-transformers` / `openai` / `stub`). The default local `sentence-transformers/all-MiniLM-L6-v2` model produces real 384-dimensional vectors when installed; `EMBEDDING_*` variables are documented in `.env.example` and `apps/ai/requirements.txt`. `apps/api/src/search.ts` uses a 1.0 cosine-distance threshold so real semantic matches are returned.
+- **TRUST_PROXY** is now documented in `.env.example`.
+**Evidence**: `pnpm -r build/typecheck/lint/test` pass; `pnpm audit --prod` clean; `curl` shows `/embed` returns a real 384-dim vector and `/search?q=cat` and `/search?q=animals` return semantically relevant notes.
+**Critic report**: Pending a fresh critic after these fixes.
+**Changes**: `packages/markdown/src/links.ts`, `packages/markdown/src/index.ts`, `packages/markdown/test/parser.test.ts`, `apps/web/app/workspaces/[id]/page.tsx`, `packages/markdown/package.json`, `packages/okf/package.json`, `packages/shared/package.json`, `apps/ai/src/main.py`, `apps/ai/requirements.txt`, `.env.example`, `apps/api/src/search.ts`, `docs/GAUNTLET_LOG.md`.
+**Regressions**: None.
+**Blockers**: None.
