@@ -70,3 +70,20 @@ clean shutdown.
 **Changes**: `apps/api/src/app.ts`, `apps/api/src/auth.ts`, `apps/api/src/middleware/auth.ts`, `apps/api/src/attachments.ts`, `apps/api/src/index.ts`, `apps/api/src/documents.ts`, `apps/api/src/okf.ts`, `apps/api/src/workspaces.ts`, `apps/api/test/auth.test.ts`, `apps/web/app/layout.tsx`, `apps/web/app/workspaces/[id]/page.tsx`, `docs/GAUNTLET_LOG.md`, `docs/WORKSTREAMS.md`, `docs/DECISIONS.md`.
 **Regressions**: None.
 **Blockers**: None.
+
+## Round 0.5 — Security review and immediate hardening
+
+**Date**: 2026-08-11
+**Coordinator**: Devin
+**Verdict**: Security review accepted; critical/high findings addressed.
+- Merged PR #5 (GitHub Actions CI workflow for lint, typecheck, test, build, and Docker Compose health checks) into `devin/pkm-v1-search-ai`.
+- Security/privacy reviewer produced `SECURITY_REVIEW.md` on `devin/pkm-v1-security-review` with 17 OWASP ASVS Level 2 findings.
+- Fixed Critical Finding 1: `GET /workspaces` and `POST /workspaces` now require authentication; orphan workspace creation is impossible; workspace list returns only the caller's member workspaces.
+- Fixed Finding 10: `requireWorkspaceMembership` no longer short-circuits when `request.user` is missing; it returns `401` instead.
+- Updated `auth.test.ts`, `integration.test.ts`, and `attachments.test.ts` to authenticate through the API and assert workspace-list isolation and unauth rejection.
+**Evidence**: `pnpm -r build`, `pnpm -r typecheck`, `pnpm -r lint`, and `pnpm -r test` pass; CI checks on PR #5 green; `curl` confirms unauthenticated `/workspaces` returns `401`.
+**Security report**: `devin/pkm-v1-security-review` (branch).
+**Decisive gap**: Remaining high findings (opaque server-side sessions, rate limiting, attachment content-type allow-list, CSP/security headers, prompt injection mitigations, AI service auth, secret fallbacks) are queued for the next round.
+**Changes**: `apps/api/src/app.ts`, `apps/api/src/auth.ts`, `apps/api/src/attachments.ts`, `apps/api/test/auth.test.ts`, `apps/api/test/integration.test.ts`, `apps/api/test/attachments.test.ts`, `.github/workflows/ci.yml`, `docs/WORKSTREAMS.md`, `docs/GAUNTLET_LOG.md`.
+**Regressions**: None.
+**Blockers**: None.
