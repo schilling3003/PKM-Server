@@ -6,6 +6,7 @@ import { migrate } from './migrate.js';
 import { buildApp } from './app.js';
 import { registerAuthRoutes } from './auth.js';
 import { registerAttachmentRoutes } from './attachments.js';
+import { registerGraphRoutes } from './graph.js';
 
 const port = Number(process.env.API_PORT || 4000);
 const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379/0';
@@ -49,6 +50,7 @@ async function main() {
 
   await registerAuthRoutes(app, { redisClient });
   await registerAttachmentRoutes(app);
+  await registerGraphRoutes(app);
 
   app.get('/health', async () => {
     const services: { status: 'ok' | 'error' }[] = [];

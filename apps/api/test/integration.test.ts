@@ -361,7 +361,8 @@ describe('document safety limits', () => {
 
   it('rejects YAML frontmatter alias bombs', async () => {
     const ws = await createWorkspace('YamlBomb');
-    const content = '---\na: &a [x,x,x]\nb: &b [*a,*a,*a,*a,*a,*a,*a,*a,*a]\nc: &c [*b,*b,*b,*b,*b,*b,*b,*b,*b]\n---\nbody';
+    const width = 30;
+    const content = `---\na: &a [${Array(width).fill('x').join(',')}]\nb: &b [${Array(width).fill('*a').join(',')}]\nc: &c [${Array(width).fill('*b').join(',')}]\n---\nbody`;
     const res = await app.inject({
       ...withCookie(),
       method: 'POST',
