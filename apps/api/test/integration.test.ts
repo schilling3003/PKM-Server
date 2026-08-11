@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll, beforeEach, afterAll } from 'vitest';
 import { buildApp } from '../src/app.js';
 import { registerAuthRoutes } from '../src/auth.js';
+import { registerGraphRoutes } from '../src/graph.js';
 import { pool } from '../src/db.js';
 import { migrate } from '../src/migrate.js';
 
@@ -23,6 +24,7 @@ beforeAll(async () => {
     'TRUNCATE users, workspace_members, workspaces, documents, revisions, document_links, document_chunks, attachments CASCADE'
   );
   app = await buildApp({ logger: false });
+  await registerGraphRoutes(app);
   await registerAuthRoutes(app);
 
   const reg = await app.inject({
@@ -367,5 +369,55 @@ describe('document safety limits', () => {
       payload: { path: 'bomb.md', content },
     });
     expect(res.statusCode).toBe(400);
+  });
+});
+
+describe('graph endpoint', () => {
+  it('returns workspace-scoped nodes and edges', async () => {
+    const ws = await createWorkspace('Graph Endpoint');
+    const a = await createDoc(
+      ws.id,
+      'a.md',
+      '---\ntype: Note\n---\n\nLink to [B](b.md).\n'
+    );
+    const b = await createDoc(
+      ws.id,
+      'b.md',
+      '---\ntype: Concept\n---\n\nBody.\n'
+    );
+
+    const res = await app.inject({
+      ...withCookie(),
+      method: 'GET',
+      url: `/workspaces/${ws.id}/graph`,
+    });
+    expect(res.statusCode).toBe(200);
+    const graph = JSON.parse(res.payload) as { nodes: { id: string }[]; edges: { source: string; target: string }[] };
+    expect(graph.nodes).toHaveLength(2);
+    expect(graph.edges).toHaveLength(1);
+    expect(graph.edges[0].source).toBe(a.id);
+    expect(graph.edges[0].target).toBe(b.id);
+  });
+
+  it('does not leak graph data across workspaces', async () => {
+    const ws1 = await createWorkspace('Graph Alpha');
+    const ws2 = await createWorkspace('Graph Beta');
+    await createDoc(ws1.id, 'x.md', '---\ntype: Note\n---\n\nAlpha.\n');
+    await createDoc(ws2.id, 'y.md', '---\ntype: Note\n---\n\nBeta.\n');
+
+    const g1 = await app.inject({
+      ...withCookie(),
+      method: 'GET',
+      url: `/workspaces/${ws1.id}/graph`,
+    });
+    const g2 = await app.inject({
+      ...withCookie(),
+      method: 'GET',
+      url: `/workspaces/${ws2.id}/graph`,
+    });
+    expect(JSON.parse(g1.payload).nodes).toHaveLength(1);
+    expect(JSON.parse(g2.payload).nodes).toHaveLength(1);
+    expect(JSON.parse(g1.payload).nodes[0].path).toBe('x.md');
+    expect(JSON.parse(g2.payload).nodes[0].path).toBe('y.md');
   });
 });
