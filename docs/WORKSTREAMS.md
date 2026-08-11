@@ -16,9 +16,9 @@
 | 10 | Attachments, safe rendering, imports, exports, migration | child-attachments (`devin/pkm-v1-attachments`) | done | 1, 9 |
 | 11 | Responsive design, accessibility, theming, search UI, quick switcher | child-webui (`devin/pkm-v1-search-theme`) | done | 3, 4 |
 | 12 | Performance, resilience, rate limiting, observability, backups | unassigned | planned | all |
-| 13 | Supply-chain security, privacy, threat model, abuse cases | child-security-hardening (`devin/pkm-v1-security-hardening`) | in_progress | 9, 10 |
+| 13 | Supply-chain security, privacy, threat model, abuse cases | child-security-hardening (`devin/pkm-v1-security-hardening`) | done (merged) | 9, 10 |
 | 14 | Clean-checkout onboarding, development tooling, CI, release readiness | child-ci (merged PR #5) | done | all |
-| 15 | Graph view, note outline, tags/properties panel | child-graph (`devin/pkm-v1-graph-panel`) | in_progress | 3, 4 |
+| 15 | Graph view, note outline, tags/properties panel | child-graph (`devin/pkm-v1-graph-panel`) | done (merged) | 3, 4 |
 | 16 | Tags and property search, advanced AI diff editing | unassigned | planned | 5, 15 |
 
 ## Shared Contracts
