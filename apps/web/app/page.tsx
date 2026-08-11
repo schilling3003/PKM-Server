@@ -26,11 +26,11 @@ export default function Home() {
   }
 
   return (
-    <main className="min-h-screen bg-gray-50 p-8">
-      <h1 className="text-3xl font-bold text-gray-900">PKM v1</h1>
-      <p className="mt-2 text-gray-600">Markdown-first personal knowledge management.</p>
+    <main className="min-h-screen bg-background p-8 text-foreground">
+      <h1 className="text-3xl font-bold text-foreground">PKM v1</h1>
+      <p className="mt-2 text-muted-foreground">Markdown-first personal knowledge management.</p>
 
-      {error && <p className="mt-4 rounded bg-red-100 p-3 text-red-700">{error}</p>}
+      {error && <p className="mt-4 rounded bg-destructive/10 p-3 text-destructive">{error}</p>}
 
       <form onSubmit={handleCreate} className="mt-8 flex max-w-md gap-2">
         <input
@@ -38,9 +38,9 @@ export default function Home() {
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder="New workspace name"
-          className="flex-1 rounded border border-gray-300 px-3 py-2"
+          className="flex-1 rounded border border-border bg-card px-3 py-2 text-foreground"
         />
-        <button type="submit" className="rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700">
+        <button type="submit" className="rounded bg-primary px-4 py-2 text-primary-foreground hover:bg-primary/90">
           Create
         </button>
       </form>
@@ -51,10 +51,10 @@ export default function Home() {
           <li key={ws.id}>
             <Link
               href={`/workspaces/${ws.id}`}
-              className="block rounded border border-gray-200 bg-white p-4 hover:shadow-sm"
+              className="block rounded border border-border bg-card p-4 hover:shadow-sm"
             >
               <span className="font-medium">{ws.name}</span>
-              <span className="ml-2 text-sm text-gray-500">{ws.id}</span>
+              <span className="ml-2 text-sm text-muted-foreground">{ws.id}</span>
             </Link>
           </li>
         ))}
