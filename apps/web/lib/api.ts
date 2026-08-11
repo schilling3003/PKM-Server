@@ -166,6 +166,7 @@ export interface IndexStatus {
   indexed_document_count: number;
   current_document_count: number;
   stale_document_count: number;
+  failed_document_count: number;
   chunk_count: number;
   embedded_chunk_count: number;
 }
@@ -178,9 +179,9 @@ export async function getWorkspaceIndexStatus(workspaceId: string): Promise<Inde
 export async function getDocumentIndexStatus(
   workspaceId: string,
   documentId: string
-): Promise<{ document_id: string; chunk_count: number; embedded_chunk_count: number; stale: boolean }> {
+): Promise<{ document_id: string; chunk_count: number; embedded_chunk_count: number; stale: boolean; failed: boolean }> {
   const res = await fetch(`${API_BASE}/workspaces/${workspaceId}/documents/${documentId}/index-status`);
-  return handleResponse<{ document_id: string; chunk_count: number; embedded_chunk_count: number; stale: boolean }>(res);
+  return handleResponse<{ document_id: string; chunk_count: number; embedded_chunk_count: number; stale: boolean; failed: boolean }>(res);
 }
 
 export async function getBacklinks(workspaceId: string, documentId: string): Promise<Link[]> {

@@ -272,7 +272,7 @@ export default function WorkspacePage() {
   const [wikilinkIndex, setWikilinkIndex] = useState(0);
   const [unlinkedMentions, setUnlinkedMentions] = useState<Document[]>([]);
   const [indexStatus, setIndexStatus] = useState<IndexStatus | null>(null);
-  const [docIndexStatus, setDocIndexStatus] = useState<{ chunk_count: number; embedded_chunk_count: number; stale: boolean } | null>(null);
+  const [docIndexStatus, setDocIndexStatus] = useState<{ chunk_count: number; embedded_chunk_count: number; stale: boolean; failed: boolean } | null>(null);
   const [revisions, setRevisions] = useState<Revision[]>([]);
   const [loadingRevisions, setLoadingRevisions] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -1241,11 +1241,15 @@ export default function WorkspacePage() {
                     {indexStatus.stale_document_count > 0 && (
                       <p className="text-amber-600">{indexStatus.stale_document_count} stale</p>
                     )}
+                    {indexStatus.failed_document_count > 0 && (
+                      <p className="text-rose-600">{indexStatus.failed_document_count} failed index</p>
+                    )}
                     <p>{indexStatus.chunk_count} chunks, {indexStatus.embedded_chunk_count} embedded</p>
                     {docIndexStatus && (
                       <p>
                         This note: {docIndexStatus.chunk_count} chunk(s), {docIndexStatus.embedded_chunk_count} embedded
                         {docIndexStatus.stale && <span className="text-amber-600">, stale</span>}
+                        {docIndexStatus.failed && <span className="text-rose-600">, failed index</span>}
                       </p>
                     )}
                   </div>
