@@ -149,6 +149,7 @@ clean shutdown.
 - **M-3 (`standardToWiki` regex fragility)**: Replaced the regex-based converter with an AST-based implementation using `unified` + `remark-parse`. `wikiToStandard` now percent-encodes spaces in URLs; `standardToWiki` decodes them to produce valid round-trip wikilinks.
 - **H-1/H-2 (`/ask` stub and prompt injection)**: `apps/ai/src/main.py` `/ask` now calls an OpenAI-compatible chat-completions endpoint when `LLM_BASE_URL` and `LLM_API_KEY` are explicitly configured. The prompt includes a system message that refuses to follow instructions embedded in notes, reveal secrets, or ignore grounding. When no LLM is configured, it safely returns a grounded note-list message.
 - **Graph/link resolution**: `syncLinks` now resolves wikilinks case-insensitively, decodes percent-encoded standard Markdown URLs, and stores lowercase target paths so `resolveBacklinks` matches across casing. This fixes graph edges and backlinks when note titles contain spaces or capitalization differences.
+- **bcryptjs ESM import**: `apps/api/src/auth.ts` imports `bcrypt` from `bcryptjs` as the default export so the compiled `dist` runtime has the `hash`/`compare` functions.
 - Updated `.env.example` with `LLM_*` and `TEST_DATABASE_URL` documentation.
 **Evidence**: `pnpm -r build/typecheck/lint/test` pass; `pnpm audit --prod` clean; API tests run against `pkm_test` and do not touch `pkm`; `packages/markdown` round-trip tests pass with `Project Ideas` target containing a space.
 **Critic report**: Round 0.8 critic session in progress.
