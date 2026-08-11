@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll, beforeEach, afterAll } from 'vitest';
 import { buildApp } from '../src/app.js';
+import { registerAuthRoutes } from '../src/auth.js';
 import { registerAttachmentRoutes } from '../src/attachments.js';
 import { pool } from '../src/db.js';
 import { migrate } from '../src/migrate.js';
@@ -7,6 +8,11 @@ import { migrate } from '../src/migrate.js';
 type App = Awaited<ReturnType<typeof buildApp>>;
 
 let app: App;
+let cookie: string;
+
+function withCookie() {
+  return { headers: { cookie: `pkm_session=${cookie}` } };
+}
 
 function buildMultipartBody(
   filename: string,
@@ -24,6 +30,7 @@ function buildMultipartBody(
 
 async function createWorkspace(name: string) {
   const res = await app.inject({
+    ...withCookie(),
     method: 'POST',
     url: '/workspaces',
     payload: { name },
@@ -35,7 +42,19 @@ async function createWorkspace(name: string) {
 beforeAll(async () => {
   await migrate(pool);
   app = await buildApp({ logger: false });
+  await registerAuthRoutes(app);
   await registerAttachmentRoutes(app);
+
+  const reg = await app.inject({
+    method: 'POST',
+    url: '/auth/register',
+    payload: { email: 'attachments@example.com', password: 'password123' },
+  });
+  expect(reg.statusCode).toBe(201);
+  const setCookie = reg.headers['set-cookie'];
+  const header = Array.isArray(setCookie) ? setCookie[0] : setCookie;
+  const match = header?.match(/pkm_session=([^;]+)/);
+  cookie = match?.[1] ?? '';
 });
 
 beforeEach(async () => {
@@ -55,10 +74,11 @@ describe('attachments', () => {
 
     const body = buildMultipartBody('hello.txt', 'text/plain', 'Hello world');
     const upload = await app.inject({
+    ...withCookie(),
       method: 'POST',
       url: `/workspaces/${ws1.id}/attachments`,
       payload: body,
-      headers: { 'Content-Type': 'multipart/form-data; boundary=----test' },
+      headers: { ...withCookie().headers, 'Content-Type': 'multipart/form-data; boundary=----test' },
     });
     expect(upload.statusCode).toBe(201);
     const attachment = JSON.parse(upload.payload);
@@ -67,13 +87,16 @@ describe('attachments', () => {
     expect(attachment.content_type).toBe('text/plain');
     expect(attachment.size_bytes).toBe(11);
 
-    const list1 = await app.inject({ method: 'GET', url: `/workspaces/${ws1.id}/attachments` });
+    const list1 = await app.inject({
+    ...withCookie(), method: 'GET', url: `/workspaces/${ws1.id}/attachments` });
     expect(JSON.parse(list1.payload)).toHaveLength(1);
 
-    const list2 = await app.inject({ method: 'GET', url: `/workspaces/${ws2.id}/attachments` });
+    const list2 = await app.inject({
+    ...withCookie(), method: 'GET', url: `/workspaces/${ws2.id}/attachments` });
     expect(JSON.parse(list2.payload)).toHaveLength(0);
 
     const download = await app.inject({
+    ...withCookie(),
       method: 'GET',
       url: `/attachments/${attachment.id}?workspaceId=${ws1.id}`,
     });
@@ -82,37 +105,43 @@ describe('attachments', () => {
     expect(download.headers.location).toContain(attachment.storage_key);
 
     const crossDownload = await app.inject({
+    ...withCookie(),
       method: 'GET',
       url: `/attachments/${attachment.id}?workspaceId=${ws2.id}`,
     });
     expect(crossDownload.statusCode).toBe(404);
 
-    const noWorkspace = await app.inject({ method: 'GET', url: `/attachments/${attachment.id}` });
+    const noWorkspace = await app.inject({
+    ...withCookie(), method: 'GET', url: `/attachments/${attachment.id}` });
     expect(noWorkspace.statusCode).toBe(400);
 
     const delCross = await app.inject({
+    ...withCookie(),
       method: 'DELETE',
       url: `/attachments/${attachment.id}?workspaceId=${ws2.id}`,
     });
     expect(delCross.statusCode).toBe(404);
 
     const del = await app.inject({
+    ...withCookie(),
       method: 'DELETE',
       url: `/attachments/${attachment.id}?workspaceId=${ws1.id}`,
     });
     expect(del.statusCode).toBe(204);
 
-    const listAfter = await app.inject({ method: 'GET', url: `/workspaces/${ws1.id}/attachments` });
+    const listAfter = await app.inject({
+    ...withCookie(), method: 'GET', url: `/workspaces/${ws1.id}/attachments` });
     expect(JSON.parse(listAfter.payload)).toHaveLength(0);
   });
 
   it('rejects uploads without a file', async () => {
     const ws = await createWorkspace('Reject');
     const noFile = await app.inject({
+    ...withCookie(),
       method: 'POST',
       url: `/workspaces/${ws.id}/attachments`,
       payload: Buffer.from(''),
-      headers: { 'Content-Type': 'multipart/form-data; boundary=----test' },
+      headers: { ...withCookie().headers, 'Content-Type': 'multipart/form-data; boundary=----test' },
     });
     expect(noFile.statusCode).toBe(400);
   });
@@ -121,10 +150,11 @@ describe('attachments', () => {
     const ws = await createWorkspace('Executable');
     const body = buildMultipartBody('malware.exe', 'application/octet-stream', 'binary');
     const blocked = await app.inject({
+    ...withCookie(),
       method: 'POST',
       url: `/workspaces/${ws.id}/attachments`,
       payload: body,
-      headers: { 'Content-Type': 'multipart/form-data; boundary=----test' },
+      headers: { ...withCookie().headers, 'Content-Type': 'multipart/form-data; boundary=----test' },
     });
     expect(blocked.statusCode).toBe(400);
   });

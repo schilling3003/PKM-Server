@@ -1,20 +1,34 @@
 import { describe, it, expect, beforeAll, beforeEach, afterAll } from 'vitest';
 import { buildApp } from '../src/app.js';
+import { registerAuthRoutes } from '../src/auth.js';
 import { pool } from '../src/db.js';
 import { migrate } from '../src/migrate.js';
 
 type App = Awaited<ReturnType<typeof buildApp>>;
 
 let app: App;
+let cookie: string;
 
 beforeAll(async () => {
   await migrate(pool);
   app = await buildApp({ logger: false });
+  await registerAuthRoutes(app);
+
+  const reg = await app.inject({
+    method: 'POST',
+    url: '/auth/register',
+    payload: { email: 'integration@example.com', password: 'password123' },
+  });
+  expect(reg.statusCode).toBe(201);
+  const setCookie = reg.headers['set-cookie'];
+  const header = Array.isArray(setCookie) ? setCookie[0] : setCookie;
+  const match = header?.match(/pkm_session=([^;]+)/);
+  cookie = match?.[1] ?? '';
 });
 
 beforeEach(async () => {
   await pool.query(
-    'TRUNCATE workspaces, documents, revisions, document_links, document_chunks CASCADE'
+    'TRUNCATE workspaces, documents, revisions, document_links, document_chunks, attachments CASCADE'
   );
 });
 
@@ -22,8 +36,13 @@ afterAll(async () => {
   await pool.end();
 });
 
+function withCookie() {
+  return { headers: { cookie: `pkm_session=${cookie}` } };
+}
+
 async function createWorkspace(name: string) {
   const res = await app.inject({
+    ...withCookie(),
     method: 'POST',
     url: '/workspaces',
     payload: { name },
@@ -34,6 +53,7 @@ async function createWorkspace(name: string) {
 
 async function createDoc(workspaceId: string, path: string, content: string) {
   const res = await app.inject({
+    ...withCookie(),
     method: 'POST',
     url: `/workspaces/${workspaceId}/documents`,
     payload: { path, content },
@@ -59,8 +79,10 @@ describe('workspace isolation', () => {
     );
 
     // /documents list
-    const list1 = await app.inject({ method: 'GET', url: `/workspaces/${ws1.id}/documents` });
-    const list2 = await app.inject({ method: 'GET', url: `/workspaces/${ws2.id}/documents` });
+    const list1 = await app.inject({
+    ...withCookie(), method: 'GET', url: `/workspaces/${ws1.id}/documents` });
+    const list2 = await app.inject({
+    ...withCookie(), method: 'GET', url: `/workspaces/${ws2.id}/documents` });
     const docs1 = JSON.parse(list1.payload);
     const docs2 = JSON.parse(list2.payload);
     expect(docs1).toHaveLength(1);
@@ -69,8 +91,10 @@ describe('workspace isolation', () => {
     expect(docs2[0].content).toContain('Beta');
 
     // /search
-    const s1 = await app.inject({ method: 'GET', url: `/workspaces/${ws1.id}/search?q=Alpha` });
-    const s2 = await app.inject({ method: 'GET', url: `/workspaces/${ws2.id}/search?q=Alpha` });
+    const s1 = await app.inject({
+    ...withCookie(), method: 'GET', url: `/workspaces/${ws1.id}/search?q=Alpha` });
+    const s2 = await app.inject({
+    ...withCookie(), method: 'GET', url: `/workspaces/${ws2.id}/search?q=Alpha` });
     expect(JSON.parse(s1.payload).length).toBe(1);
     expect(JSON.parse(s2.payload).length).toBe(0);
 
@@ -79,10 +103,12 @@ describe('workspace isolation', () => {
     await createDoc(ws2.id, 'b.md', '---\ntype: Note\n---\n\nSee [note](note.md).\n');
 
     const bl1 = await app.inject({
+    ...withCookie(),
       method: 'GET',
       url: `/workspaces/${ws1.id}/documents/${doc1.id}/backlinks`,
     });
     const bl2 = await app.inject({
+    ...withCookie(),
       method: 'GET',
       url: `/workspaces/${ws2.id}/documents/${doc2.id}/backlinks`,
     });
@@ -91,6 +117,7 @@ describe('workspace isolation', () => {
 
     // Cross-workspace backlink query should return nothing
     const blCross = await app.inject({
+    ...withCookie(),
       method: 'GET',
       url: `/workspaces/${ws2.id}/documents/${doc1.id}/backlinks`,
     });
@@ -98,11 +125,13 @@ describe('workspace isolation', () => {
 
     // /ask citations
     const ask1 = await app.inject({
+    ...withCookie(),
       method: 'POST',
       url: `/workspaces/${ws1.id}/ask`,
       payload: { question: 'apples' },
     });
     const ask2 = await app.inject({
+    ...withCookie(),
       method: 'POST',
       url: `/workspaces/${ws2.id}/ask`,
       payload: { question: 'apples' },
@@ -137,13 +166,15 @@ describe('OKF v0.2 round-trip', () => {
     };
 
     const importRes = await app.inject({
+    ...withCookie(),
       method: 'POST',
       url: `/workspaces/${ws.id}/okf/import`,
       payload: bundle,
     });
     expect(importRes.statusCode).toBe(200);
 
-    const docsRes = await app.inject({ method: 'GET', url: `/workspaces/${ws.id}/documents` });
+    const docsRes = await app.inject({
+    ...withCookie(), method: 'GET', url: `/workspaces/${ws.id}/documents` });
     const docs = JSON.parse(docsRes.payload);
     expect(docs).toHaveLength(1);
 
@@ -154,7 +185,8 @@ describe('OKF v0.2 round-trip', () => {
     expect(docs[0].content).not.toContain('[[');
 
     // Export should convert standard links back to wikilinks and include bundle metadata.
-    const exportRes = await app.inject({ method: 'GET', url: `/workspaces/${ws.id}/okf/export` });
+    const exportRes = await app.inject({
+    ...withCookie(), method: 'GET', url: `/workspaces/${ws.id}/okf/export` });
     expect(exportRes.statusCode).toBe(200);
     const exported = JSON.parse(exportRes.payload);
     expect(exported.version).toBe('0.2');
@@ -168,13 +200,15 @@ describe('OKF v0.2 round-trip', () => {
 
     // Re-import the exported bundle and verify the canonical content is unchanged.
     const reimport = await app.inject({
+    ...withCookie(),
       method: 'POST',
       url: `/workspaces/${ws.id}/okf/import`,
       payload: exported,
     });
     expect(reimport.statusCode).toBe(200);
 
-    const docsAfter = await app.inject({ method: 'GET', url: `/workspaces/${ws.id}/documents` });
+    const docsAfter = await app.inject({
+    ...withCookie(), method: 'GET', url: `/workspaces/${ws.id}/documents` });
     const after = JSON.parse(docsAfter.payload);
     expect(after).toHaveLength(1);
     expect(after[0].content).toBe(docs[0].content);
@@ -184,6 +218,7 @@ describe('OKF v0.2 round-trip', () => {
     const ws = await createWorkspace('OKF Validation');
 
     const missingType = await app.inject({
+    ...withCookie(),
       method: 'POST',
       url: `/workspaces/${ws.id}/okf/import`,
       payload: { concepts: [{ path: 'x.md', metadata: {}, document: { body: '' } }] },
@@ -192,6 +227,7 @@ describe('OKF v0.2 round-trip', () => {
     expect(missingType.payload).toContain('type');
 
     const reservedIndex = await app.inject({
+    ...withCookie(),
       method: 'POST',
       url: `/workspaces/${ws.id}/okf/import`,
       payload: { concepts: [{ path: 'index.md', metadata: { type: 'Note' }, document: { body: '' } }] },
@@ -200,6 +236,7 @@ describe('OKF v0.2 round-trip', () => {
     expect(reservedIndex.payload).toContain('Reserved filename');
 
     const reservedLog = await app.inject({
+    ...withCookie(),
       method: 'POST',
       url: `/workspaces/${ws.id}/okf/import`,
       payload: { concepts: [{ path: 'log.md', metadata: { type: 'Note' }, document: { body: '' } }] },
@@ -220,15 +257,18 @@ describe('document CRUD and links', () => {
     const b = await createDoc(ws.id, 'b.md', '---\ntype: Note\n---\n\nBody.\n');
 
     // List
-    const list = await app.inject({ method: 'GET', url: `/workspaces/${ws.id}/documents` });
+    const list = await app.inject({
+    ...withCookie(), method: 'GET', url: `/workspaces/${ws.id}/documents` });
     expect(JSON.parse(list.payload).length).toBe(2);
 
     // Get
-    const getA = await app.inject({ method: 'GET', url: `/workspaces/${ws.id}/documents/${a.id}` });
+    const getA = await app.inject({
+    ...withCookie(), method: 'GET', url: `/workspaces/${ws.id}/documents/${a.id}` });
     expect(getA.statusCode).toBe(200);
 
     // Outgoing links
     const links = await app.inject({
+    ...withCookie(),
       method: 'GET',
       url: `/workspaces/${ws.id}/documents/${a.id}/links`,
     });
@@ -238,6 +278,7 @@ describe('document CRUD and links', () => {
 
     // Backlinks
     const bl = await app.inject({
+    ...withCookie(),
       method: 'GET',
       url: `/workspaces/${ws.id}/documents/${b.id}/backlinks`,
     });
@@ -247,6 +288,7 @@ describe('document CRUD and links', () => {
 
     // Update
     const upd = await app.inject({
+    ...withCookie(),
       method: 'PUT',
       url: `/workspaces/${ws.id}/documents/${a.id}`,
       payload: { content: '---\ntype: Note\n---\n\nUpdated link to [B](b.md).\n' },
@@ -255,12 +297,14 @@ describe('document CRUD and links', () => {
 
     // Delete
     const del = await app.inject({
+    ...withCookie(),
       method: 'DELETE',
       url: `/workspaces/${ws.id}/documents/${a.id}`,
     });
     expect(del.statusCode).toBe(204);
 
-    const listAfter = await app.inject({ method: 'GET', url: `/workspaces/${ws.id}/documents` });
+    const listAfter = await app.inject({
+    ...withCookie(), method: 'GET', url: `/workspaces/${ws.id}/documents` });
     expect(JSON.parse(listAfter.payload).length).toBe(1);
   });
 });

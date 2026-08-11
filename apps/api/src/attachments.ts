@@ -33,8 +33,10 @@ async function requireWorkspaceMembership(
   reply: import('fastify').FastifyReply,
   workspaceId: string
 ) {
-  // When auth is not wired (e.g. some test harnesses), skip membership check.
-  if (!request.user) return true;
+  if (!request.user) {
+    reply.code(401).send({ error: 'Unauthorized' });
+    return false;
+  }
 
   const { rows } = await pool.query(
     'SELECT 1 FROM workspace_members WHERE workspace_id = $1 AND user_id = $2',

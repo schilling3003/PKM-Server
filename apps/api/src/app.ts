@@ -17,15 +17,18 @@ export async function buildApp(options: { logger?: boolean } = {}) {
   app.post('/workspaces', async (req, reply) => {
     const schema = z.object({ name: z.string().min(1) });
     const body = schema.parse(req.body);
-    const ws = await workspaces.createWorkspace(body.name, req.user?.id);
+    if (!req.user) {
+      return reply.status(401).send({ error: 'Unauthorized' });
+    }
+    const ws = await workspaces.createWorkspace(body.name, req.user.id);
     reply.status(201).send(ws);
   });
 
   app.get('/workspaces', async (req) => {
-    if (req.user) {
-      return workspaces.listUserWorkspaces(req.user.id);
+    if (!req.user) {
+      return [];
     }
-    return workspaces.listWorkspaces();
+    return workspaces.listUserWorkspaces(req.user.id);
   });
 
   app.get('/workspaces/:id', async (req, reply) => {

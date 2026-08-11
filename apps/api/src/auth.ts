@@ -131,20 +131,16 @@ export async function registerAuthRoutes(app: FastifyInstance) {
 
     const workspaceId = parts[1];
     if (!workspaceId) {
-      await optionalAuth(request);
+      await requireAuth(request, reply);
       return;
     }
 
     await requireAuth(request, reply);
     if (reply.sent) return;
 
-    if (!request.user) {
-      return reply.code(401).send({ error: 'Unauthorized' });
-    }
-
     const { rows } = await query(
       'SELECT 1 FROM workspace_members WHERE workspace_id = $1 AND user_id = $2',
-      [workspaceId, request.user.id]
+      [workspaceId, request.user!.id]
     );
     if (rows.length === 0) {
       return reply.code(403).send({ error: 'Forbidden' });

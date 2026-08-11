@@ -151,6 +151,27 @@ async function seedMemberWorkspace(email: string) {
   return { cookie, userId, workspaceId };
 }
 
+describe('workspace authorization', () => {
+  it('rejects unauthenticated /workspaces list and create', async () => {
+    const list = await app.inject({ method: 'GET', url: '/workspaces' });
+    expect(list.statusCode).toBe(401);
+
+    const create = await app.inject({ method: 'POST', url: '/workspaces', payload: { name: 'Orphan' } });
+    expect(create.statusCode).toBe(401);
+  });
+
+  it('only lists workspaces the user is a member of', async () => {
+    const { workspaceId, cookie: memberCookie } = await seedMemberWorkspace('member@example.com');
+    const other = await seedMemberWorkspace('othermember@example.com');
+
+    const res = await app.inject({ method: 'GET', url: '/workspaces', ...withCookie(memberCookie) });
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.payload);
+    expect(body.some((w: { id: string }) => w.id === workspaceId)).toBe(true);
+    expect(body.some((w: { id: string }) => w.id === other.workspaceId)).toBe(false);
+  });
+});
+
 describe('workspace membership authorization', () => {
   it('allows members to access /workspaces/:id and nested routes', async () => {
     const { workspaceId, cookie } = await seedMemberWorkspace('owner@example.com');
