@@ -1,0 +1,218 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ci:
+    name: Lint, typecheck, test, and build
+    runs-on: ubuntu-latest
+
+    env:
+      NODE_ENV: development
+      POSTGRES_USER: pkm
+      POSTGRES_PASSWORD: pkm
+      DATABASE_URL: postgresql://pkm:pkm@localhost:5432/pkm?schema=public
+      REDIS_URL: redis://localhost:6379/0
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+      S3_ENDPOINT: http://localhost:9000
+      S3_ACCESS_KEY: minioadmin
+      S3_SECRET_KEY: minioadmin
+      S3_BUCKET: pkm
+      S3_REGION: us-east-1
+      AI_SERVICE_URL: http://localhost:8000
+      TEMPORAL_HOST: localhost:7233
+      API_PORT: 4000
+      API_BASE_URL: http://localhost:4000
+      WEB_URL: http://localhost:3000
+      SESSION_SECRET: dev-secret-change-me-before-deploying
+      OIDC_ISSUER: ""
+      OIDC_CLIENT_ID: ""
+      OIDC_CLIENT_SECRET: ""
+      OIDC_REDIRECT_URI: http://localhost:3000/api/auth/callback/oidc
+
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: pkm
+          POSTGRES_PASSWORD: pkm
+          POSTGRES_DB: pkm
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U pkm -d pkm"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+      minio:
+        image: minio/minio
+        env:
+          MINIO_ROOT_USER: minioadmin
+          MINIO_ROOT_PASSWORD: minioadmin
+        ports:
+          - 9000:9000
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Wait for backing services
+        env:
+          NODE_PATH: ${{ github.workspace }}/apps/api/node_modules
+        run: |
+          cat > /tmp/wait-for-services.cjs <<'EOF'
+          const { Pool } = require('pg');
+          const { createClient } = require('redis');
+          const http = require('http');
+
+          const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+          async function waitPostgres() {
+            const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+            for (let i = 0; i < 30; i++) {
+              try {
+                await pool.query('SELECT 1');
+                await pool.end();
+                console.log('Postgres ready');
+                return;
+              } catch {
+                await sleep(1000);
+              }
+            }
+            throw new Error('Postgres did not become ready');
+          }
+
+          async function waitRedis() {
+            for (let i = 0; i < 30; i++) {
+              const client = createClient({ url: process.env.REDIS_URL });
+              try {
+                await client.connect();
+                await client.ping();
+                await client.disconnect();
+                console.log('Redis ready');
+                return;
+              } catch {
+                await sleep(1000);
+              }
+            }
+            throw new Error('Redis did not become ready');
+          }
+
+          async function waitMinio() {
+            for (let i = 0; i < 60; i++) {
+              const ok = await new Promise((resolve) => {
+                const req = http.get('http://localhost:9000/minio/health/live', (res) => {
+                  res.resume();
+                  res.on('end', () => resolve(res.statusCode === 200));
+                });
+                req.on('error', () => resolve(false));
+                req.setTimeout(5000, () => {
+                  req.destroy();
+                  resolve(false);
+                });
+              });
+              if (ok) {
+                console.log('MinIO ready');
+                return;
+              }
+              await sleep(1000);
+            }
+            throw new Error('MinIO did not become ready');
+          }
+
+          waitPostgres()
+            .then(waitRedis)
+            .then(waitMinio)
+            .then(() => process.exit(0))
+            .catch((err) => {
+              console.error(err);
+              process.exit(1);
+            });
+          EOF
+          node /tmp/wait-for-services.cjs
+
+      - name: Build packages for workspace type resolution
+        run: pnpm --filter "./packages/*" build
+
+      - name: Typecheck
+        run: pnpm -r typecheck
+
+      - name: Lint
+        run: pnpm -r lint
+
+      - name: Test
+        run: pnpm -r test
+
+      - name: Build
+        run: pnpm -r build
+
+  local-stack:
+    name: Verify Docker Compose local stack
+    runs-on: ubuntu-latest
+    env:
+      COMPOSE_PROJECT_NAME: pkm
+      POSTGRES_USER: pkm
+      POSTGRES_PASSWORD: pkm
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+      # OIDC placeholders keep .env.example happy if referenced.
+      OIDC_ISSUER: ""
+      OIDC_CLIENT_ID: ""
+      OIDC_CLIENT_SECRET: ""
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Copy local environment defaults
+        run: cp .env.example .env
+
+      - name: Start local stack
+        run: docker compose up -d --wait
+
+      - name: Show service status
+        run: docker compose ps
+
+      - name: Health check MinIO
+        run: curl -fsS http://localhost:9000/minio/health/live
+
+      - name: Health check Postgres
+        run: docker compose exec -T postgres pg_isready -U "$POSTGRES_USER" -d pkm
+
+      - name: Health check Redis
+        run: docker compose exec -T redis redis-cli ping
+
+      - name: Stop local stack
+        if: always()
+        run: docker compose down -v
