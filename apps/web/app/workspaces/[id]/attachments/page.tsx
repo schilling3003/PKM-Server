@@ -47,6 +47,14 @@ export default function AttachmentsPage() {
     };
   }, [workspaceId]);
 
+  useEffect(() => {
+    if (workspace) {
+      document.title = `Attachments — ${workspace.name} — PKM`;
+    } else {
+      document.title = 'Attachments — PKM';
+    }
+  }, [workspace]);
+
   async function handleDelete(attachment: Attachment) {
     if (!confirm(`Delete "${attachment.filename}"? This cannot be undone.`)) return;
     try {
@@ -62,7 +70,7 @@ export default function AttachmentsPage() {
   }
 
   return (
-    <main className="min-h-screen bg-gray-50 p-8">
+    <main id="main-content" className="min-h-screen bg-gray-50 p-8">
       <div className="mx-auto max-w-3xl">
         <div className="mb-6 flex items-center gap-2 text-sm text-gray-500">
           <Link href="/" className="hover:text-gray-900 hover:underline">
@@ -82,7 +90,7 @@ export default function AttachmentsPage() {
 
         <h1 className="text-2xl font-bold text-gray-900">Attachments</h1>
 
-        {error && <p className="mt-4 rounded bg-red-100 p-3 text-red-700">{error}</p>}
+        {error && <p className="mt-4 rounded bg-red-100 p-3 text-red-700" role="alert">{error}</p>}
 
         <div className="mt-6">
           <AttachmentUpload
@@ -112,6 +120,8 @@ export default function AttachmentsPage() {
                     target="_blank"
                     rel="noreferrer"
                     className="rounded border border-gray-300 px-3 py-1 text-sm text-gray-700 hover:bg-gray-100"
+                    aria-label={`Download ${attachment.filename}`}
+                    title={`Download ${attachment.filename}`}
                   >
                     Download
                   </a>
@@ -119,6 +129,7 @@ export default function AttachmentsPage() {
                     type="button"
                     onClick={() => handleDelete(attachment)}
                     className="rounded bg-red-600 px-3 py-1 text-sm text-white hover:bg-red-700"
+                    aria-label={`Delete ${attachment.filename}`}
                   >
                     Delete
                   </button>

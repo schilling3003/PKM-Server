@@ -398,6 +398,16 @@ export default function WorkspacePage() {
   }, [workspaceId, selectedId]);
 
   useEffect(() => {
+    if (workspace && doc) {
+      document.title = `${doc.title ?? doc.path.split('/').pop() ?? doc.path} — ${workspace.name} — PKM`;
+    } else if (workspace) {
+      document.title = `${workspace.name} — PKM`;
+    } else {
+      document.title = 'Workspace — PKM';
+    }
+  }, [workspace, doc]);
+
+  useEffect(() => {
     let cancelled = false;
     Promise.resolve()
       .then(() => {
@@ -496,7 +506,7 @@ export default function WorkspacePage() {
         e.preventDefault();
         if (isDirty) saveRef.current();
       }
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === 'f') {
         e.preventDefault();
         setPaletteOpen((open) => !open);
       }
@@ -703,19 +713,19 @@ export default function WorkspacePage() {
               <button
                 type="button"
                 onClick={() => toggleFolder(node.path)}
-                className="mr-1 inline-flex h-5 w-5 items-center justify-center rounded text-muted-foreground hover:bg-muted"
-                aria-label={isExpanded ? 'Collapse folder' : 'Expand folder'}
+                className="flex flex-1 items-center gap-1 rounded px-2 py-1 text-left text-sm font-medium text-foreground hover:bg-muted"
+                aria-expanded={isExpanded}
+                aria-label={`${isExpanded ? 'Collapse' : 'Expand'} folder ${node.name}`}
               >
-                {isExpanded ? '▾' : '▸'}
-              </button>
-              <span className="flex-1 cursor-pointer text-sm font-medium text-foreground" onClick={() => toggleFolder(node.path)}>
+                <span aria-hidden="true">{isExpanded ? '▾' : '▸'}</span>
                 {node.name}
-              </span>
+              </button>
               <button
                 type="button"
                 onClick={() => openNewDialog(node.path)}
-                className="rounded px-1 text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
+                className="ml-1 inline-flex h-6 min-w-6 items-center justify-center rounded px-1 text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
                 title={`New note in ${node.path}`}
+                aria-label={`New note in ${node.path}`}
               >
                 + new
               </button>
@@ -736,6 +746,7 @@ export default function WorkspacePage() {
           <button
             type="button"
             onClick={() => navigateToDoc(d.id)}
+            aria-current={isSelected ? 'true' : undefined}
             className={`flex-1 truncate rounded px-2 py-1 text-left text-sm ${
               isSelected ? 'bg-accent text-accent-foreground' : 'text-foreground'
             }`}
@@ -745,7 +756,7 @@ export default function WorkspacePage() {
           <button
             type="button"
             onClick={() => handleDuplicate(d)}
-            className="ml-1 rounded px-1 text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
+            className="ml-1 inline-flex h-6 min-w-6 items-center justify-center rounded px-1 text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
             aria-label="Duplicate note"
             title="Duplicate"
           >
@@ -754,7 +765,7 @@ export default function WorkspacePage() {
           <button
             type="button"
             onClick={() => handleArchive(d)}
-            className="ml-1 rounded px-1 text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
+            className="ml-1 inline-flex h-6 min-w-6 items-center justify-center rounded px-1 text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
             aria-label="Archive note"
             title="Archive"
           >
@@ -767,7 +778,7 @@ export default function WorkspacePage() {
               setRenamePath(d.path);
               renamePathRef.current = d.path;
             }}
-            className="ml-1 rounded px-1 text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
+            className="ml-1 inline-flex h-6 min-w-6 items-center justify-center rounded px-1 text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
             aria-label="Rename or move note"
           >
             rename
@@ -775,7 +786,7 @@ export default function WorkspacePage() {
           <button
             type="button"
             onClick={() => confirmDelete(d.id, d.path)}
-            className="ml-1 rounded px-1 text-xs text-destructive hover:bg-destructive/10"
+            className="ml-1 inline-flex h-6 min-w-6 items-center justify-center rounded px-1 text-xs text-destructive hover:bg-destructive/10"
             aria-label="Delete note"
           >
             ×
@@ -904,6 +915,7 @@ export default function WorkspacePage() {
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Filter notes..."
+                aria-label="Filter notes"
                 className="flex-1 rounded border border-border bg-card px-2 py-1 text-sm text-foreground"
               />
               <button
@@ -950,11 +962,12 @@ export default function WorkspacePage() {
                 <button
                   type="button"
                   onClick={() => setShowArchived((v) => !v)}
-                  className="flex items-center gap-2 text-xs text-muted-foreground"
+                  className="flex w-full min-h-6 items-center gap-2 rounded px-2 py-1.5 text-xs text-muted-foreground hover:bg-muted"
                   aria-pressed={showArchived}
+                  aria-controls="archived-notes-list"
                 >
                   <span
-                    className={`flex h-3.5 w-3.5 items-center justify-center rounded border border-border ${
+                    className={`flex h-4 w-4 items-center justify-center rounded border border-border ${
                       showArchived ? 'bg-primary text-primary-foreground' : 'bg-card'
                     }`}
                     aria-hidden="true"
@@ -964,7 +977,7 @@ export default function WorkspacePage() {
                   Show archived
                 </button>
                 {showArchived && (
-                  <ul className="mt-2 space-y-1">
+                  <ul id="archived-notes-list" className="mt-2 space-y-1">
                     {documents
                       .filter((d) => d.archived_at)
                       .map((d) => (
@@ -980,7 +993,8 @@ export default function WorkspacePage() {
                           <button
                             type="button"
                             onClick={() => handleRestore(d.id)}
-                            className="ml-1 rounded px-1 text-xs text-primary hover:bg-muted"
+                            className="ml-1 inline-flex h-6 min-w-6 items-center justify-center rounded px-1 text-xs text-primary hover:bg-muted"
+                            aria-label={`Restore ${d.title ?? d.path.split('/').pop()}`}
                           >
                             restore
                           </button>
@@ -1017,7 +1031,7 @@ export default function WorkspacePage() {
                 onClick={() => setPaletteOpen(true)}
                 className="flex items-center gap-2 rounded border border-border bg-muted px-2 py-1.5 text-sm text-foreground hover:bg-muted/80"
                 aria-label="Open search"
-                title="Open search (Ctrl+K / Cmd+K)"
+                title="Open search (Ctrl+Shift+F / Cmd+Shift+F)"
               >
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
@@ -1034,7 +1048,7 @@ export default function WorkspacePage() {
                 </svg>
                 <span className="hidden sm:inline">Search</span>
                 <kbd className="hidden rounded border border-border bg-card px-1.5 py-0.5 text-xs text-muted-foreground md:inline-block">
-                  ⌘K
+                  ⌘⇧F
                 </kbd>
               </button>
 
@@ -1294,6 +1308,7 @@ export default function WorkspacePage() {
                 if (e.key === 'Escape') setShowNewDialog(false);
               }}
               placeholder="path/to/note.md"
+              aria-label="New note path"
               className="mt-4 w-full rounded border border-border bg-card px-3 py-2 text-sm text-foreground"
               autoFocus
             />
@@ -1331,6 +1346,7 @@ export default function WorkspacePage() {
                 if (e.key === 'Escape') setRenameTarget(null);
               }}
               placeholder="new/path.md"
+              aria-label="New path for note"
               className="mt-4 w-full rounded border border-border bg-card px-3 py-2 text-sm text-foreground"
               autoFocus
             />

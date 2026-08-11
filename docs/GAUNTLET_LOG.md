@@ -295,3 +295,22 @@ clean shutdown.
 **Changes**: `apps/web/app/workspaces/[id]/page.tsx`, `docs/TEST_REPORT.md`, `docs/GAUNTLET_LOG.md`.
 **Regressions**: None.
 **Blockers**: None.
+
+## Round 1.8 — Workstream 20: Accessibility audit and keyboard navigation polish
+
+**Date**: 2026-08-11
+**Owner**: child-a11y (`devin/pkm-v1-a11y`)
+**Verdict**: Audited primary journeys with axe-core; fixed critical/serious WCAG 2.2 AA violations; keyboard and semantic markup improved.
+- **Focus and keyboard**: Added visible `:focus-visible` outlines for buttons, links, inputs, textareas, selects, and `[tabindex]` controls in `apps/web/app/globals.css`.
+- **Skip-to-content**: Added a skip link in `apps/web/app/layout.tsx` pointing to `#main-content`; all main page roots now carry `id="main-content"` and are focusable (`tabIndex={-1}`).
+- **Semantic markup and ARIA**: Page titles updated via `document.title` in `login/page.tsx`, `page.tsx`, `workspaces/[id]/page.tsx`, `attachments/page.tsx`, and `graph/page.tsx`; form labels added for icon-only/placeholder-only inputs; folder tree headers use `aria-expanded`; `Show archived` uses `aria-pressed` and `aria-controls`; note-tree action buttons use `aria-label` and minimum 24×24 hit areas; `not-found.tsx` uses `<main id="main-content">`; `GraphView` canvas is focusable with `role="application"`, an `aria-label`, and arrow-key/Enter/+/−/0 keyboard navigation.
+- **Keyboard shortcut conflict**: Search palette shortcut changed from `Ctrl+K`/`Cmd+K` to `Ctrl+Shift+F`/`Cmd+Shift+F` to avoid browser address-bar conflicts; trigger label and tooltip updated.
+- **Attachment alt/accessibility**: `AttachmentUpload` helper text contrast fixed (`text-gray-400` → `text-gray-500`) to meet 4.5:1; download/delete links and file input carry explicit labels.
+- **Automated checks**: Added `apps/web/scripts/axe-audit.js` using `puppeteer-core` and `axe-core`. The script can start the Next.js dev server (`AXE_SERVE=1`) or audit an existing stack (`AXE_AUDIT_URL` + `AXE_API_URL`); it registers a test user, creates a workspace and document, and audits `/`, `/login`, `/workspaces/:id`, `/workspaces/:id/attachments`, and `/workspaces/:id/graph`. It exits non-zero on critical/serious violations and can write a JSON report (`AXE_REPORT_FILE`). Added `apps/web/package.json` scripts `test:axe` and `test` (placeholder) and dev dependencies `axe-core@^4.10.2` and `puppeteer-core@^23.9.0`.
+- **Cross-workstream touch points**: `apps/web/app/workspaces/[id]/attachments/page.tsx` (Workstream 10), `apps/web/app/workspaces/[id]/graph/page.tsx` and `_components/GraphView.tsx` (Workstream 15), `apps/web/app/login/page.tsx` (Workstream 9), `apps/web/app/workspaces/[id]/page.tsx` (Workstreams 3/4/11/16), and `apps/web/components/AttachmentUpload.tsx` (Workstream 10) were edited for accessibility; all non-a11y behavior preserved.
+**Evidence**: `pnpm -r build/typecheck/lint/test` pass; `pnpm audit --prod` clean; `apps/web/scripts/axe-audit.js` with `AXE_AUDIT_URL=http://localhost:3000 AXE_API_URL=http://localhost:4000` reports `PASSED: no critical or serious violations found` across login, workspace list, editor, attachments, and graph.
+**Critic report**: None yet for this round.
+**Decisive gap**: None.
+**Changes**: `apps/web/app/globals.css`, `apps/web/app/layout.tsx`, `apps/web/app/login/page.tsx`, `apps/web/app/not-found.tsx`, `apps/web/app/page.tsx`, `apps/web/app/workspaces/[id]/page.tsx`, `apps/web/app/workspaces/[id]/attachments/page.tsx`, `apps/web/app/workspaces/[id]/graph/page.tsx`, `apps/web/app/workspaces/[id]/_components/GraphView.tsx`, `apps/web/components/AttachmentUpload.tsx`, `apps/web/package.json`, `apps/web/scripts/axe-audit.js`, `pnpm-lock.yaml`, `docs/GAUNTLET_LOG.md`, `docs/DECISIONS.md`, `docs/WORKSTREAMS.md`.
+**Regressions**: None.
+**Blockers**: None.

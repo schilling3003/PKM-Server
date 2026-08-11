@@ -90,7 +90,7 @@ export function AttachmentUpload({ workspaceId, onUploaded, onError }: Attachmen
           </>
         )}
       </p>
-      <p className="mt-1 text-xs text-gray-400">Maximum file size: 10 MB</p>
+      <p className="mt-1 text-xs text-gray-500">Maximum file size: 10 MB</p>
     </div>
   );
 }

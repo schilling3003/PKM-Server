@@ -7,7 +7,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test:axe": "node scripts/axe-audit.js",
+    "test": "node -e \"console.log('No web unit tests configured. Run pnpm --filter @pkm/web test:axe against a running dev server.')\""
   },
   "dependencies": {
     "@pkm/markdown": "workspace:*",
@@ -23,8 +25,10 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "axe-core": "^4.10.2",
     "eslint": "^9",
     "eslint-config-next": "16.3.0",
+    "puppeteer-core": "^23.9.0",
     "tailwindcss": "^4",
     "typescript": "^5"
   },
