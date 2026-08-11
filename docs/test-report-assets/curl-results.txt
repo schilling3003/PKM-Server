@@ -1,0 +1,95 @@
+=== Health checks ===
+{"status":"ok","version":"0.1.0"}
+{"status":"ok","version":"0.1.0"}
+Web HTTP 200
+
+=== Auth: register new curl user ===
+User: curl-gp-1786432206@test.local
+{
+  "user": {
+    "id": "5b3d9326-464d-4bd0-a3af-91ca034f39c8",
+    "email": "curl-gp-1786432206@test.local",
+    "createdAt": "2026-08-11T07:10:06.714Z"
+  }
+}
+
+=== /auth/me ===
+{
+  "user": {
+    "id": "5b3d9326-464d-4bd0-a3af-91ca034f39c8",
+    "email": "curl-gp-1786432206@test.local"
+  }
+}
+
+=== Workspace creation ===
+WS_ID: 83d3eaba-2569-45a7-ba49-b119e8f0a989
+
+=== Note CRUD ===
+DOC_ID: 7b0aaba8-2e45-4366-8cbd-4648555e8fc5
+
+List documents:
+"api-note.md"
+
+Update document:
+{"id":"7b0aaba8-2e45-4366-8cbd-4648555e8fc5","path":"api-note.md","updated_at":"2026-08-11T07:10:06.827Z"}
+
+Backlinks:
+[
+  {
+    "id": "7b0aaba8-2e45-4366-8cbd-4648555e8fc5",
+    "path": "api-note.md",
+    "title": "api-note"
+  }
+]
+
+Index status:
+{
+  "document_count": 1,
+  "indexed_document_count": 1,
+  "current_document_count": 1,
+  "stale_document_count": 0,
+  "chunk_count": 2,
+  "embedded_chunk_count": 2
+}
+
+Search q=cat:
+"api-note.md"
+
+Search q=animals:
+"api-note.md"
+
+=== OKF export ===
+"0.2"
+"Curl WS"
+1
+
+=== OKF import ===
+{
+  "imported": 1,
+  "concepts": [
+    {
+      "id": "357aed25-34c7-4497-8dac-26a9801f44f4",
+      "workspace_id": "83d3eaba-2569-45a7-ba49-b119e8f0a989",
+      "path": "okf-test.md",
+      "title": "okf-test",
+      "content": "---\ntype: Note\n---\n\nLink to [API note](api-note.md).",
+      "frontmatter": {
+        "type": "Note"
+      },
+      "content_hash": "87a566969ab6c8328d96c1734d9c98f9a150e5a483d0b74aa05e20e92c6d2769",
+      "created_at": "2026-08-11T07:10:06.946Z",
+      "updated_at": "2026-08-11T07:10:06.946Z"
+    }
+  ]
+}
+
+List after OKF import:
+"api-note.md"
+"okf-test.md"
+
+=== Attachment upload/download ===
+ATTACH_ID: 52271041-5487-4920-be4e-ed0b87341e78
+attachment diff OK
+
+=== Delete note ===
+1
