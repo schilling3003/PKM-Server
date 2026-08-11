@@ -10,10 +10,10 @@
 | 4 | Navigation, folders, tabs, properties, tags, outline, links, backlinks | child-3872c0 | done (v1 scope: tree, switcher, create/rename/delete, backlinks) | 1, 2 |
 | 5 | Full-text search, filters, quick switcher, unlinked mentions | child-webui (`devin/pkm-v1-search-theme`) | done | 1, 2 |
 | 6 | Semantic search, embeddings, vector retrieval | coordinator | done | 1, 2 |
-| 7 | Grounded AI answers, citations, abstention, diff editing | coordinator | done | 1, 6 |
-| 8 | Collaboration, presence, reconnects, conflicts, concurrent edits | unassigned | planned | 2, 3 |
+| 7 | Grounded AI answers, citations, and abstention (API) | coordinator | done | 1, 6 |
+| 8 | AI-proposed edits with diff/approval and Ask UI | coordinator | in_progress | 7, 16 |
 | 9 | Authentication, workspace membership, authorization, isolation | child-auth (`devin/pkm-v1-auth`) | done | — |
-| 10 | Attachments, safe rendering, imports, exports, migration | child-attachments (`devin/pkm-v1-attachments`) | done | 1, 9 |
+| 10 | Attachments, safe rendering, and migration | child-attachments (`devin/pkm-v1-attachments`) | done | 1, 9 |
 | 11 | Responsive design, accessibility, theming, search UI, quick switcher | child-webui (`devin/pkm-v1-search-theme`) | done | 3, 4 |
 | 12 | Performance, resilience, rate limiting, observability, backups | unassigned | planned | all |
 | 13 | Supply-chain security, privacy, threat model, abuse cases | child-security-hardening (`devin/pkm-v1-security-hardening`) | done (merged) | 9, 10 |
@@ -24,7 +24,9 @@
 | 18 | Revision history API and UI (list/restore previous versions) | child-revisions (`devin/pkm-v1-revisions`) | done (merged) | 2, 3 |
 | 19 | Performance, resilience, and recovery tests (100k note, 10k workspace, restart, failed indexing) | child-perf (`devin/pkm-v1-perf`) | done (merged) | all |
 | 20 | Accessibility audit and keyboard navigation polish | child-a11y (`devin/pkm-v1-a11y`) | done (merged) | 3, 4, 11 |
-| 21 | Final Gauntlet integration, clean checkout reproducibility, and PR readiness | coordinator | done (gates passed; final critic pending) | all |
+| 21 | Final Gauntlet integration, clean checkout reproducibility, and PR readiness | coordinator | in_progress (awaiting RB-1, RB-2, RB-3 fixes) | all |
+| 22 | OKF import/export UI (workspace-level export and bundle import) | coordinator | in_progress | 10 |
+| 23 | Public landing authentication redirect and axe contrast fixes | coordinator | in_progress | 9, 11 |
 
 ## Shared Contracts
 

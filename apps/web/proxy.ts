@@ -36,13 +36,20 @@ export async function proxy(request: NextRequest) {
   const next = NextResponse.next();
   next.headers.set('Content-Security-Policy', csp);
 
-  if (request.nextUrl.pathname.startsWith('/workspaces')) {
-    const cookie = request.headers.get('cookie') || '';
-    const user = await getSession(cookie);
-    if (!user) {
-      const loginUrl = new URL('/login', request.url);
-      return NextResponse.redirect(loginUrl, { headers: next.headers });
-    }
+  const pathname = request.nextUrl.pathname;
+  const cookie = request.headers.get('cookie') || '';
+  const user = await getSession(cookie);
+
+  // Redirect unauthenticated users away from authenticated-only routes.
+  if (!user && (pathname === '/' || pathname.startsWith('/workspaces'))) {
+    const loginUrl = new URL('/login', request.url);
+    return NextResponse.redirect(loginUrl, { headers: next.headers });
+  }
+
+  // Authenticated users don't need the login page.
+  if (user && pathname === '/login') {
+    const homeUrl = new URL('/', request.url);
+    return NextResponse.redirect(homeUrl, { headers: next.headers });
   }
 
   return next;

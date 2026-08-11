@@ -65,11 +65,9 @@
 
 ## Open hardening (in progress)
 
-- CORS `credentials` and constrained origin.
-- Per-request nonce-based CSP once Next.js nonce propagation is reliable.
 - Sub-resource integrity for third-party assets, if any are loaded.
-- CSRF double-submit cookie or SameSite policy review for cross-origin POSTs.
-- Automated end-to-end, accessibility (axe), and load/performance test coverage.
+- CSRF double-submit cookie review for cross-origin POSTs in multi-origin deployments.
+- Fuzz and adversarial fixtures for Markdown, HTML, OKF, and attachment imports.
 
 ## Security-Test Plan
 
