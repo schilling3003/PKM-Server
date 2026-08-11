@@ -21,6 +21,7 @@ export async function semanticSearch(workspaceId: string, query: string, limit =
      FROM document_chunks c
      JOIN documents d ON d.id = c.document_id
      WHERE c.workspace_id = $1 AND c.embedding IS NOT NULL
+       AND c.embedding <=> $2::vector < 0.5
      ORDER BY c.embedding <=> $2::vector
      LIMIT $3`,
     [workspaceId, toSql(vector), limit]
