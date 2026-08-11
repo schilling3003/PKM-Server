@@ -1,4 +1,4 @@
-import 'dotenv/config';
+import './env.js';
 import { createClient } from 'redis';
 import { performance } from 'node:perf_hooks';
 import { pool } from './db.js';

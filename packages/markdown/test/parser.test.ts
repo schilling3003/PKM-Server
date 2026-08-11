@@ -100,7 +100,7 @@ describe('wikiToStandard / standardToWiki', () => {
   it('converts wikilinks to markdown and back', () => {
     const body = 'Read [[Project Ideas|ideas]] then [[Goals]]';
     const standard = wikiToStandard(body);
-    expect(standard).toContain('[ideas](Project Ideas.md)');
+    expect(standard).toContain('[ideas](Project%20Ideas.md)');
     expect(standard).toContain('[Goals](Goals.md)');
     const restored = standardToWiki(standard);
     expect(restored).toContain('[[Project Ideas|ideas]]');

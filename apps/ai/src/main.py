@@ -1,5 +1,6 @@
 import os
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 import httpx
 from dotenv import load_dotenv
@@ -7,7 +8,9 @@ from fastapi import Depends, FastAPI, Header, HTTPException
 from pydantic import BaseModel
 from starlette.status import HTTP_401_UNAUTHORIZED
 
-load_dotenv()
+# Load the repository root .env so `pnpm --filter @pkm/ai` finds the same
+# config regardless of the package working directory.
+load_dotenv(Path(__file__).resolve().parents[3] / ".env")
 
 AI_SERVICE_URL = os.getenv("AI_SERVICE_URL", "http://localhost:8000")
 AI_SERVICE_API_KEY = os.getenv("AI_SERVICE_API_KEY")

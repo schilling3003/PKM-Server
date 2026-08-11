@@ -1,7 +1,7 @@
 import { unified } from 'unified';
 import remarkParse from 'remark-parse';
 import { visit } from 'unist-util-visit';
-import type { Link } from 'mdast';
+import type { Link, Text } from 'mdast';
 
 export interface WikiLink {
   target: string;
@@ -91,17 +91,53 @@ export function extractOutline(body: string): Heading[] {
 
 export function wikiToStandard(body: string): string {
   return body.replace(WIKILINK_RE, (_, target: string, alias?: string) => {
-    const url = `${target.trim()}.md`;
+    const url = encodeURI(`${target.trim()}.md`);
     const text = alias ? alias.trim() : target.trim();
     return `[${text}](${url})`;
   });
 }
 
+function tryDecodeUrl(url: string): string {
+  try {
+    return decodeURI(url);
+  } catch {
+    return url;
+  }
+}
+
 export function standardToWiki(body: string): string {
-  // Convert [text](target.md) back to [[target]] or [[target|text]].
-  return body.replace(/\[([^\]]+)\]\(([^)]+)\.md\)/g, (_, text: string, target: string) => {
-    const t = target.trim();
-    const x = text.trim();
-    return x === t ? `[[${t}]]` : `[[${t}|${x}]]`;
+  const tree = unified().use(remarkParse).parse(body);
+  const replacements: { start: number; end: number; text: string }[] = [];
+
+  visit(tree, 'link', (node: Link) => {
+    if (!node.url.endsWith('.md') || node.title) return;
+
+    const decoded = tryDecodeUrl(node.url);
+    const target = decoded.slice(0, -'.md'.length).trim();
+    let text = '';
+    visit(node, 'text', (n: Text) => {
+      text += n.value;
+    });
+    text = text.trim();
+
+    const wiki = text === target ? `[[${target}]]` : `[[${target}|${text}]]`;
+    if (node.position) {
+      replacements.push({
+        start: node.position.start.offset!,
+        end: node.position.end.offset!,
+        text: wiki,
+      });
+    }
   });
+
+  replacements.sort((a, b) => a.start - b.start);
+  let result = '';
+  let last = 0;
+  for (const r of replacements) {
+    result += body.slice(last, r.start);
+    result += r.text;
+    last = r.end;
+  }
+  result += body.slice(last);
+  return result;
 }

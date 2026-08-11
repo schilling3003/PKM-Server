@@ -123,7 +123,7 @@ const HTML_TAG_RE = /<\s*(html|script|svg|iframe|object|embed|meta|link|style|bo
 function isSafeText(buffer: Buffer): boolean {
   if (buffer.includes(0)) return false;
   if (!isValidUtf8(buffer)) return false;
-  return !HTML_TAG_RE.test(buffer.toString('utf-8', 0, Math.min(buffer.length, 4096)));
+  return !HTML_TAG_RE.test(buffer.toString('utf-8'));
 }
 
 function getClient(): Client {
