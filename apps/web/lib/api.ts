@@ -137,6 +137,30 @@ export async function restoreDocument(workspaceId: string, id: string): Promise<
   return handleResponse<Document>(res);
 }
 
+export interface Revision {
+  id: string;
+  content_hash: string;
+  created_at: string;
+}
+
+export async function listRevisions(workspaceId: string, documentId: string): Promise<Revision[]> {
+  const res = await fetch(`${API_BASE}/workspaces/${workspaceId}/documents/${documentId}/revisions`);
+  return handleResponse<Revision[]>(res);
+}
+
+export async function getRevision(workspaceId: string, documentId: string, revisionId: string): Promise<Revision & { content: string }> {
+  const res = await fetch(`${API_BASE}/workspaces/${workspaceId}/documents/${documentId}/revisions/${revisionId}`);
+  return handleResponse<Revision & { content: string }>(res);
+}
+
+export async function restoreRevision(workspaceId: string, documentId: string, revisionId: string): Promise<Document> {
+  const res = await fetch(
+    `${API_BASE}/workspaces/${workspaceId}/documents/${documentId}/revisions/${revisionId}/restore`,
+    { method: 'POST' }
+  );
+  return handleResponse<Document>(res);
+}
+
 export interface IndexStatus {
   document_count: number;
   indexed_document_count: number;
