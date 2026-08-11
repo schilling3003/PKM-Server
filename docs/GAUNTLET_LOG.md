@@ -120,3 +120,20 @@ clean shutdown.
 **Changes**: `apps/api/src/index.ts`, `apps/api/test/integration.test.ts`, `docs/GAUNTLET_LOG.md`.
 **Regressions**: None.
 **Blockers**: None.
+
+## Round 0.8 — Critic-driven security fixes (re-login, CSP, audit, rate limiting)
+
+**Date**: 2026-08-11
+**Coordinator**: Devin
+**Verdict**: Addressed the round 0.7 critic release blockers; gates, audit, and browser smoke-test pass.
+- **RB-1**: Replaced `bcrypt` with `bcryptjs` to eliminate the `tar` CVE chain via `@mapbox/node-pre-gyp`; `pnpm audit --prod` now reports no known vulnerabilities.
+- **RB-2**: Implemented per-request CSP nonces in `apps/web/proxy.ts` and forced dynamic rendering in `apps/web/app/layout.tsx`, removing `'unsafe-inline'` and `'unsafe-eval'` from `script-src`; removed `X-Powered-By` via `poweredByHeader: false`.
+- **RB-3**: Rate-limiter Redis errors now fall back to per-process memory limiting instead of fail-open, and `apps/api/src/app.ts` sets `trustProxy` when `TRUST_PROXY=true` so IP-based limits work behind reverse proxies.
+- **Re-login after logout**: Session cookies now include a per-login nonce (`userId:${randomUUID()}`); logout blocklists the signed token, so a fresh login issues a different, unblocked token.
+- Migrated deprecated `apps/web/middleware.ts` to `apps/web/proxy.ts` per Next.js 16 guidance.
+**Evidence**: `pnpm -r build/typecheck/lint/test` pass; `pnpm audit --prod` clean; `curl` confirms logout and re-login succeed; browser login through strict-CSP page redirects to the workspace list; `curl` response headers show nonce-based CSP and no `X-Powered-By`.
+**Critic report**: `origin/devin/pkm-v1-critic-round-0-7:CRITIC_REPORT.md`; test report `origin/devin/pkm-v1-test-report-20260811:docs/TEST_REPORT_20260811.md`.
+**Decisive gap**: Remaining high/medium findings (real LLM for `/ask`, prompt-injection controls, integration-test database isolation, root `.env` loading for child processes, full-text attachment scanning, `standardToWiki` regex robustness) remain for subsequent rounds.
+**Changes**: `apps/api/package.json`, `apps/api/src/auth.ts`, `apps/api/src/middleware/auth.ts`, `apps/api/src/app.ts`, `apps/api/src/rate-limit.ts`, `apps/api/test/auth.test.ts`, `apps/web/proxy.ts`, `apps/web/middleware.ts` (renamed), `apps/web/app/layout.tsx`, `apps/web/next.config.ts`, `pnpm-lock.yaml`, `docs/GAUNTLET_LOG.md`.
+**Regressions**: None.
+**Blockers**: None.
