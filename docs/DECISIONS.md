@@ -178,3 +178,53 @@ separate `/workspaces` route can be added later if the product requires a
 different layout for that view.
 
 **Reversibility**: High. Redirect target is a single string in `login/page.tsx`.
+
+## AD-012: Content-Security-Policy with per-request nonces
+
+**Decision**: Generate a fresh nonce on every request in `apps/web/proxy.ts` and apply a CSP that uses `script-src 'self' 'nonce-<value>' 'strict-dynamic'` and `style-src 'self' 'nonce-<value>'`.
+
+**Alternatives**: Static CSP with `'unsafe-inline'`/`'unsafe-eval'`; use a nonce-only middleware.
+
+**Evidence**: `next.config.ts` cannot evaluate per-request nonces for static routes. Routing all traffic through `apps/web/proxy.ts` with `NextResponse.rewrite` lets the middleware inject a nonce into headers and into `<head>` via `request.headers`. `export const dynamic = 'force-dynamic'` in `app/layout.tsx` ensures `next start` renders each request, so the nonce reaches the HTML script/style tags.
+
+**Reversibility**: Medium. The proxy and dynamic export are isolated; reverting to a static CSP requires changing `next.config.ts` and removing `proxy.ts`.
+
+## AD-013: Password hashing with `bcryptjs`
+
+**Decision**: Use `bcryptjs` (pure JavaScript) for password hashing instead of the native `bcrypt` package.
+
+**Alternatives**: Keep `bcrypt`, replace with `argon2` or `scrypt`.
+
+**Evidence**: `bcrypt` depends on `tar`, which triggered a production `pnpm audit` failure. `bcryptjs` provides the same API, avoids native binaries, and keeps the supply-chain surface smaller for a v1 project. It is slower than native bcrypt but acceptable at expected user scale.
+
+**Reversibility**: Low. The hashing algorithm and cost remain the same, so verifying existing hashes still works; only the package import changes.
+
+## AD-014: Configurable, opt-in LLM for `/ask`
+
+**Decision**: Implement `/ask` in the Python AI service as an optional call to an OpenAI-compatible `chat/completions` endpoint controlled by `LLM_BASE_URL` and `LLM_API_KEY`. When unset, return a safe grounded note-list response.
+
+**Alternatives**: Always call a hard-coded model provider; embed a local model in the AI service; leave the endpoint as a permanent stub.
+
+**Evidence**: Requiring explicit `LLM_BASE_URL` and `LLM_API_KEY` acts as opt-in consent for sending note context to an external model, satisfying AGENTS.md privacy boundaries. The system prompt includes grounding and prompt-injection refusal instructions. The API falls back to a note list when no model is configured, so the product is usable without external AI.
+
+**Reversibility**: Medium. The prompt structure, endpoint, and provider can be changed in `apps/ai/src/main.py` without affecting the API contract.
+
+## AD-015: Integration test database isolation
+
+**Decision**: Create a dedicated `pkm_test` database on demand in `apps/api/test/setup.ts` and override `process.env.DATABASE_URL` before any test module imports `db.ts`.
+
+**Alternatives**: Require `docker-compose.test.yml`; truncate the main `pkm` database; set `TEST_DATABASE_URL` manually.
+
+**Evidence**: Tests previously truncated the developer's main `pkm` database. Creating `pkm_test` in a top-level `setup.ts` keeps dev/test data isolated without adding another compose file or manual setup. The same root `.env` is loaded so credentials match the dev stack.
+
+**Reversibility**: High. The setup is in one test file and one env variable.
+
+## AD-016: Case-insensitive, percent-decoded wikilink resolution
+
+**Decision**: Resolve wikilinks case-insensitively and percent-decode standard Markdown URLs before matching them against document paths. Store normalized lowercase target paths in `document_links`.
+
+**Alternatives**: Require exact path casing; reject mixed-case targets; store display text separately.
+
+**Evidence**: `[[Project Ideas]]` and `[[project ideas]]` should resolve to the same `project ideas.md` note. `wikiToStandard` now percent-encodes spaces, and `standardToWiki` decodes them. Without case/URL normalization, graph edges and backlinks break when users capitalize titles differently or include spaces in filenames.
+
+**Reversibility**: High. The `document_links.target_path` column is a projection; re-normalizing can be re-run for existing rows.
