@@ -346,6 +346,66 @@ describe('document CRUD and links', () => {
   });
 });
 
+describe('document lifecycle', () => {
+  it('duplicates, archives, and restores documents', async () => {
+    const ws = await createWorkspace('Lifecycle');
+    const a = await createDoc(
+      ws.id,
+      'a.md',
+      '---\ntype: Note\n---\n\nOriginal body.\n'
+    );
+
+    const dup = await app.inject({
+      ...withCookie(),
+      method: 'POST',
+      url: `/workspaces/${ws.id}/documents/${a.id}/duplicate`,
+    });
+    expect(dup.statusCode).toBe(201);
+    const dupDoc = JSON.parse(dup.payload);
+    expect(dupDoc.path).toBe('a (copy).md');
+    expect(dupDoc.content).toContain('Original body');
+
+    const archived = await app.inject({
+      ...withCookie(),
+      method: 'POST',
+      url: `/workspaces/${ws.id}/documents/${dupDoc.id}/archive`,
+    });
+    expect(archived.statusCode).toBe(200);
+    expect(JSON.parse(archived.payload).archived_at).toBeTruthy();
+
+    const activeList = await app.inject({
+      ...withCookie(),
+      method: 'GET',
+      url: `/workspaces/${ws.id}/documents`,
+    });
+    expect(JSON.parse(activeList.payload).some((d: { path: string }) => d.path === 'a (copy).md')).toBe(false);
+
+    const allList = await app.inject({
+      ...withCookie(),
+      method: 'GET',
+      url: `/workspaces/${ws.id}/documents?includeArchived=true`,
+    });
+    const allDocs = JSON.parse(allList.payload);
+    expect(allDocs.some((d: { path: string }) => d.path === 'a (copy).md')).toBe(true);
+
+    const archivedDoc = allDocs.find((d: { path: string }) => d.path === 'a (copy).md');
+    const restored = await app.inject({
+      ...withCookie(),
+      method: 'POST',
+      url: `/workspaces/${ws.id}/documents/${archivedDoc.id}/restore`,
+    });
+    expect(restored.statusCode).toBe(200);
+    expect(JSON.parse(restored.payload).archived_at).toBeNull();
+
+    const activeListAfter = await app.inject({
+      ...withCookie(),
+      method: 'GET',
+      url: `/workspaces/${ws.id}/documents`,
+    });
+    expect(JSON.parse(activeListAfter.payload).some((d: { path: string }) => d.path === 'a (copy).md')).toBe(true);
+  });
+});
+
 describe('document safety limits', () => {
   it('rejects documents larger than 1 MiB', async () => {
     const ws = await createWorkspace('SizeLimit');
