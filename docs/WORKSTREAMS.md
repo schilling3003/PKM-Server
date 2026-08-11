@@ -4,20 +4,20 @@
 
 | # | Workstream | Owner | Status | Depends On |
 |---|------------|-------|--------|------------|
-| 1 | Canonical Markdown, YAML, and OKF domain model | coordinator | planned | — |
-| 2 | Document persistence, revisioning, snapshots, recovery | builder-1 | planned | 1 |
-| 3 | Editor fidelity, keyboard workflows, slash commands, palette | builder-2 | planned | 1 |
-| 4 | Navigation, folders, tabs, properties, tags, outline, links, backlinks | builder-3 | planned | 1, 2 |
-| 5 | Full-text search, filters, quick switcher, unlinked mentions | builder-4 | planned | 1, 2 |
-| 6 | Semantic search, LightRAG ingestion, entities, graph | builder-5 | planned | 1, 2 |
-| 7 | Grounded AI answers, citations, abstention, diff editing | builder-6 | planned | 1, 6 |
-| 8 | Collaboration, presence, reconnects, conflicts, concurrent edits | builder-7 | planned | 2, 3 |
-| 9 | Authentication, workspace membership, authorization, isolation | builder-8 | planned | — |
-| 10 | Attachments, safe rendering, imports, exports, migration | builder-9 | planned | 1, 9 |
-| 11 | Responsive design, accessibility, theming, interaction states | builder-10 | planned | 3, 4 |
-| 12 | Performance, resilience, rate limiting, observability, backups | builder-11 | planned | all |
-| 13 | Supply-chain security, privacy, threat model, abuse cases | builder-12 | planned | 9, 10 |
-| 14 | Clean-checkout onboarding, development tooling, CI, release readiness | coordinator | planned | all |
+| 1 | Canonical Markdown, YAML, and OKF domain model | coordinator | done | — |
+| 2 | Document persistence, revisioning, snapshots, recovery | coordinator | done | 1 |
+| 3 | Editor fidelity, keyboard workflows, slash commands, palette | child-3872c0 | in_progress | 1, 2 |
+| 4 | Navigation, folders, tabs, properties, tags, outline, links, backlinks | child-3872c0 | in_progress | 1, 2 |
+| 5 | Full-text search, filters, quick switcher, unlinked mentions | coordinator | done | 1, 2 |
+| 6 | Semantic search, embeddings, vector retrieval | coordinator | done | 1, 2 |
+| 7 | Grounded AI answers, citations, abstention, diff editing | coordinator | done | 1, 6 |
+| 8 | Collaboration, presence, reconnects, conflicts, concurrent edits | unassigned | planned | 2, 3 |
+| 9 | Authentication, workspace membership, authorization, isolation | coordinator | v1-todo | — |
+| 10 | Attachments, safe rendering, imports, exports, migration | unassigned | planned | 1, 9 |
+| 11 | Responsive design, accessibility, theming, interaction states | unassigned | planned | 3, 4 |
+| 12 | Performance, resilience, rate limiting, observability, backups | unassigned | planned | all |
+| 13 | Supply-chain security, privacy, threat model, abuse cases | unassigned | planned | 9, 10 |
+| 14 | Clean-checkout onboarding, development tooling, CI, release readiness | coordinator | in_progress | all |
 
 ## Shared Contracts
 

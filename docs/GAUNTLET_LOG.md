@@ -24,3 +24,18 @@ error listeners; moved local dev credentials from `docker-compose.yml`
 into `.env` populated from `.env.example`; re-verified health checks and
 clean shutdown.
 **Blockers**: None.
+
+## Round 0.2 — Search, embeddings, grounded Q&A, and blocker fixes
+
+**Date**: 2026-08-11
+**Coordinator**: Devin
+**Verdict**: Backend search/AI stack verified; web front delegated to a child session.
+- Added `document_chunks` table with `pgvector` embeddings and `tsvector` full-text index.
+- Added `/workspaces/:id/search` (hybrid full-text + vector) and `/workspaces/:id/ask` (cited, workspace-isolated).
+- Wired chunk generation and embedding into document create/update with safe fallback when the AI service is unavailable.
+- Fixed Devin Review blockers: API migrations copied into `dist`, Dockerfile manifests/standalone path, AI `__main__` module path, API lint/test scripts, CORS default, and health error disclosure.
+**Evidence**: `pnpm -r build`, `pnpm -r typecheck`, `pnpm -r lint`, and `pnpm -r test` pass; Docker Compose starts healthy; API `/health` reports `ok`; `curl` creates workspaces and documents, returns isolated search results, and `/ask` returns cited notes.
+**Decisive gap**: Web UI remains a skeleton; delegated to a dedicated child Devin session.
+**Changes**: `apps/api/src/ai.ts`, `chunks.ts`, `search.ts`, `ask.ts`, `migrations/0003_search_and_vectors.sql`; updated `apps/api/src/index.ts`, `documents.ts`, Dockerfiles, `apps/ai/src/main.py`; added `apps/ai/src/__init__.py` and `apps/api/scripts/copy-migrations.cjs`.
+**Regressions**: None.
+**Blockers**: None.
