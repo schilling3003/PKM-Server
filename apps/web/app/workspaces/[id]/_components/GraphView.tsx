@@ -49,6 +49,7 @@ export default function GraphView({ data, onNodeClick, theme }: GraphViewProps) 
   const draggingRef = useRef(false);
   const dragStartRef = useRef({ x: 0, y: 0, vx: 0, vy: 0 });
   const rafRef = useRef<number | null>(null);
+  const keyboardFocusRef = useRef<number | null>(null);
 
   function readColors(): ThemeColors {
     const el = containerRef.current ?? document.documentElement;
@@ -123,6 +124,14 @@ export default function GraphView({ data, onNodeClick, theme }: GraphViewProps) 
       if (i === hoveredRef.current) {
         ctx.strokeStyle = colors.primary;
         ctx.lineWidth = 2 / v.k;
+        ctx.stroke();
+      }
+
+      if (keyboardFocusRef.current === i) {
+        ctx.strokeStyle = colors.primary;
+        ctx.lineWidth = 3 / v.k;
+        ctx.beginPath();
+        ctx.arc(n.x, n.y, n.r + 4 / v.k, 0, Math.PI * 2);
         ctx.stroke();
       }
 
@@ -269,6 +278,8 @@ export default function GraphView({ data, onNodeClick, theme }: GraphViewProps) 
       }))
       .filter((edge) => typeof edge.source === 'number' && typeof edge.target === 'number');
 
+    keyboardFocusRef.current = nodesRef.current.length > 0 ? 0 : null;
+
     rafRef.current = requestAnimationFrame(tick);
 
     return () => {
@@ -345,6 +356,83 @@ export default function GraphView({ data, onNodeClick, theme }: GraphViewProps) 
     v.k = newK;
   }
 
+  function setKeyboardFocus(index: number | null) {
+    keyboardFocusRef.current = index;
+    draw();
+  }
+
+  function moveFocus(direction: 'up' | 'down' | 'left' | 'right') {
+    const nodes = nodesRef.current;
+    const current = keyboardFocusRef.current ?? 0;
+    const a = nodes[current];
+    if (!a) return;
+    let best: number | null = null;
+    let bestDist = Infinity;
+    for (let i = 0; i < nodes.length; i++) {
+      if (i === current) continue;
+      const b = nodes[i];
+      const dx = b.x - a.x;
+      const dy = b.y - a.y;
+      const inSector =
+        (direction === 'up' && dy < 0) ||
+        (direction === 'down' && dy > 0) ||
+        (direction === 'left' && dx < 0) ||
+        (direction === 'right' && dx > 0);
+      if (!inSector) continue;
+      const dist = dx * dx + dy * dy;
+      if (dist < bestDist) {
+        bestDist = dist;
+        best = i;
+      }
+    }
+    if (best != null) setKeyboardFocus(best);
+  }
+
+  function zoom(factor: number) {
+    const v = viewRef.current;
+    v.k = Math.max(0.1, Math.min(4, v.k * factor));
+  }
+
+  function resetView() {
+    const { width, height } = sizeRef.current;
+    viewRef.current = { x: width / 2, y: height / 2, k: 1 };
+  }
+
+  function openFocused() {
+    const i = keyboardFocusRef.current;
+    if (i != null && nodesRef.current[i] && onNodeClick) {
+      onNodeClick(nodesRef.current[i].node);
+    }
+  }
+
+  function handleKeyDown(e: React.KeyboardEvent<HTMLCanvasElement>) {
+    if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      moveFocus('up');
+    } else if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      moveFocus('down');
+    } else if (e.key === 'ArrowLeft') {
+      e.preventDefault();
+      moveFocus('left');
+    } else if (e.key === 'ArrowRight') {
+      e.preventDefault();
+      moveFocus('right');
+    } else if (e.key === '+' || e.key === '=') {
+      e.preventDefault();
+      zoom(1.1);
+    } else if (e.key === '-' || e.key === '_') {
+      e.preventDefault();
+      zoom(0.9);
+    } else if (e.key === '0') {
+      e.preventDefault();
+      resetView();
+    } else if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      openFocused();
+    }
+  }
+
   return (
     <div ref={containerRef} className="relative flex-1 overflow-hidden bg-background">
       <canvas
@@ -358,10 +446,16 @@ export default function GraphView({ data, onNodeClick, theme }: GraphViewProps) 
           if (canvasRef.current) canvasRef.current.style.cursor = 'default';
         }}
         onWheel={handleWheel}
+        onFocus={() => setKeyboardFocus(nodesRef.current.length > 0 ? 0 : null)}
+        onBlur={() => setKeyboardFocus(null)}
+        onKeyDown={handleKeyDown}
+        tabIndex={0}
+        role="application"
+        aria-label="Note graph. Use Tab to focus, arrow keys to move between notes, Enter to open, plus or minus to zoom."
         className="block h-full w-full"
       />
       <div className="pointer-events-none absolute bottom-3 left-3 rounded border border-border bg-card/80 p-2 text-xs text-muted-foreground backdrop-blur-sm">
-        <p>Scroll to zoom · drag to pan · click a node to open</p>
+        <p>Scroll to zoom · drag to pan · click to open · arrow keys + Enter when focused</p>
         <p>{data.nodes.length} notes · {data.edges.length} links</p>
       </div>
     </div>

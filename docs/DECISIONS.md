@@ -238,3 +238,15 @@ different layout for that view.
 **Evidence**: Next.js 16.3.0 warns that `next start` does not work when `output: 'standalone'` is configured, because standalone output emits `server.js` and does not serve `_next/static` chunks via `next start`. Keeping `next start` usable for local golden-path testing (and for `pnpm --filter @pkm/web start`) while still producing a standalone image for Docker keeps both paths simple and does not require copying static assets manually.
 
 **Reversibility**: High. The change is a single `output` expression in `next.config.ts` and one `ENV` line in `apps/web/Dockerfile`.
+
+## AD-018: Accessibility — visible focus, skip link, semantic markup, and axe-core audit
+
+**Decision**: Address WCAG 2.2 AA accessibility in `apps/web` by adding visible focus indicators, a skip-to-content link, semantic ARIA attributes and page titles, keyboard-operable graph view and note-tree actions, non-conflicting keyboard shortcuts, and an automated `axe-core` audit for the primary journeys.
+
+**Alternatives**: Add `@axe-core/react` only during development; rely on manual testing; use `@axe-core/playwright` inside the existing end-to-end harness.
+
+**Evidence**: `axe-core` through `puppeteer-core` gives a repeatable, scriptable audit of the running application (`login`, workspace list, editor, attachments, graph). A standalone script (`apps/web/scripts/axe-audit.js`) keeps the check self-contained and runnable against a dev server or an existing stack. Visible `:focus-visible` outlines, a skip link, `aria-label`/`aria-expanded`/`aria-pressed`, and keyboard navigation on the graph canvas close the most common critical/serious barriers without requiring large component rewrites. The search palette shortcut (`Ctrl+K`) conflicted with browser address-bar focus, so it was moved to `Ctrl+Shift+F`/`Cmd+Shift+F`.
+
+**Cross-workstream changes**: `apps/web/app/workspaces/[id]/attachments/page.tsx` (Workstream 10), `apps/web/app/workspaces/[id]/graph/page.tsx` and `_components/GraphView.tsx` (Workstream 15), `apps/web/app/login/page.tsx` (Workstream 9), `apps/web/app/workspaces/[id]/page.tsx` (Workstreams 3/4/11/16), and `apps/web/components/AttachmentUpload.tsx` (Workstream 10) were edited for accessibility. No functional behavior was changed.
+
+**Reversibility**: High. Accessibility additions are additive CSS/ARIA/labels and can be revised independently; the axe script is an isolated dev dependency.
