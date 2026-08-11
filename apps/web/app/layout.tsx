@@ -10,7 +10,7 @@ export const metadata: Metadata = {
   description: "Markdown-first personal knowledge management",
 };
 
-// Per-request CSP nonces require dynamic rendering.
+// CSP is applied by proxy.ts; dynamic rendering keeps per-request headers.
 export const dynamic = 'force-dynamic';
 
 export default function RootLayout({ children }: { children: ReactNode }) {

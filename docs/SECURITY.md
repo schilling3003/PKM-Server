@@ -28,8 +28,10 @@
 ## Mitigations
 
 - Workspace ID enforced in every DB query and service request.
-- Strict Content Security Policy; Markdown rendered through a hardened,
-  allow-list-based pipeline.
+- Content Security Policy applied by `apps/web/proxy.ts` using `default-src 'self'`,
+  `script-src 'self' 'unsafe-inline'` (`'unsafe-eval'` in development), `style-src 'self' 'unsafe-inline'`,
+  `object-src 'none'`, `frame-ancestors 'none'`, and explicit `img-src`/`connect-src`/`font-src`
+  origins. Markdown rendered through a hardened, allow-list-based pipeline.
 - Attachment uploads limited by size and validated against a magic-byte allow-list
   (`image/png`, `image/jpeg`, `image/gif`, `image/webp`, `application/pdf`,
   `text/plain`, `text/markdown`); executable, HTML, SVG, and unknown types are
@@ -64,7 +66,7 @@
 ## Open hardening (in progress)
 
 - CORS `credentials` and constrained origin.
-- Dependency audit remediation (`tar` via `bcrypt`/`node-pre-gyp`).
+- Per-request nonce-based CSP once Next.js nonce propagation is reliable.
 - Sub-resource integrity for third-party assets, if any are loaded.
 - CSRF double-submit cookie or SameSite policy review for cross-origin POSTs.
 - Automated end-to-end, accessibility (axe), and load/performance test coverage.

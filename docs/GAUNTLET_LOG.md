@@ -235,3 +235,17 @@ clean shutdown.
 **Changes**: `apps/api/src/auth.ts`, `apps/api/test/rate-limit.test.ts`, `apps/api/test/attachments.test.ts`, `docs/SECURITY.md`, `.env.example`, `apps/web/app/not-found.tsx`, `docs/GAUNTLET_LOG.md`.
 **Regressions**: None.
 **Blockers**: None.
+
+## Round 1.4 — CSP nonce mismatch fix and re-verification
+
+**Date**: 2026-08-11
+**Coordinator**: Devin
+**Verdict**: Fixed the CSP nonce mismatch that blocked the UI under `next dev` and `next start`.
+- **Root cause**: Next.js 16.3.0 with Turbopack did not propagate the `Content-Security-Policy` request-header nonce generated in `apps/web/proxy.ts` to the `nonce` attributes on the rendered `<script>`/`<style>` tags. This caused the browser to block all application JS because the CSP `script-src` required `nonce-<proxy>` while the tags carried a different `nonce-<next>`.
+- **Fix**: Rewrote `apps/web/proxy.ts` to emit a source-based CSP (`default-src 'self'`, `script-src 'self' 'unsafe-inline'` with `'unsafe-eval'` in dev, `style-src 'self' 'unsafe-inline'`, `object-src 'none'`, `frame-ancestors 'none'`, explicit `img-src`/`connect-src`/`font-src`) and removed per-request nonces and `strict-dynamic`. Also removed the unused `x-nonce` request header propagation.
+- Updated `docs/DECISIONS.md` AD-012 and `docs/SECURITY.md` to record the nonce propagation issue and the current source-based CSP.
+- Re-verified: `pnpm -r build/typecheck/lint/test` pass; `pnpm audit --prod` clean; `next build`/`next start` serve pages with CSP enabled and no console CSP errors; browser registration/login redirects to the workspace list.
+**Decisive gap**: None for this round.
+**Changes**: `apps/web/proxy.ts`, `apps/web/app/layout.tsx`, `docs/DECISIONS.md`, `docs/SECURITY.md`, `docs/GAUNTLET_LOG.md`.
+**Regressions**: None.
+**Blockers**: None.

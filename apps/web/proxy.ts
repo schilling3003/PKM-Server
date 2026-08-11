@@ -1,9 +1,8 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-import { randomUUID } from 'node:crypto';
 import { getSession } from './lib/auth';
 
-function buildCsp(request: NextRequest, nonce: string) {
+function buildCsp() {
   const s3Origin = process.env.S3_ENDPOINT
     ? new URL(process.env.S3_ENDPOINT).origin
     : 'http://localhost:9000';
@@ -11,11 +10,15 @@ function buildCsp(request: NextRequest, nonce: string) {
     ? new URL(process.env.API_BASE_URL).origin
     : 'http://localhost:4000';
 
+  const isDev = process.env.NODE_ENV === 'development';
+
   return (
     [
       "default-src 'self'",
-      `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'`,
-      `style-src 'self' 'nonce-${nonce}'`,
+      isDev
+        ? "script-src 'self' 'unsafe-inline' 'unsafe-eval'"
+        : "script-src 'self' 'unsafe-inline'",
+      "style-src 'self' 'unsafe-inline'",
       `img-src 'self' ${s3Origin} data: blob:`,
       `connect-src 'self' ${apiOrigin}`,
       "font-src 'self'",
@@ -28,16 +31,9 @@ function buildCsp(request: NextRequest, nonce: string) {
 }
 
 export async function proxy(request: NextRequest) {
-  const nonce = Buffer.from(randomUUID()).toString('base64');
-  const csp = buildCsp(request, nonce);
+  const csp = buildCsp();
 
-  const requestHeaders = new Headers(request.headers);
-  requestHeaders.set('x-nonce', nonce);
-  requestHeaders.set('Content-Security-Policy', csp);
-
-  const next = NextResponse.next({
-    request: { headers: requestHeaders },
-  });
+  const next = NextResponse.next();
   next.headers.set('Content-Security-Policy', csp);
 
   if (request.nextUrl.pathname.startsWith('/workspaces')) {
