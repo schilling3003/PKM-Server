@@ -1,11 +1,13 @@
 'use client';
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type AnchorHTMLAttributes, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type AnchorHTMLAttributes, type HTMLAttributes, type ReactNode } from 'react';
 import NextLink from 'next/link';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { wikiToStandard, extractWikiLinks } from '@pkm/markdown';
+import OutlinePanel from './_components/OutlinePanel';
+import FrontmatterPanel from './_components/FrontmatterPanel';
 import {
   createDocument,
   deleteDocument,
@@ -143,6 +145,48 @@ function findDocByWikiTarget(docs: Document[], target: string): Document | undef
   return docs.find((d) => d.path === resolved || d.path === target);
 }
 
+function extractText(node: unknown): string {
+  if (node == null) return '';
+  if (typeof node === 'string' || typeof node === 'number') return String(node);
+  if (Array.isArray(node)) return node.map(extractText).join('');
+  if (typeof node === 'object') {
+    const obj = node as Record<string, unknown>;
+    if (typeof obj.value === 'string') return obj.value;
+    if (Array.isArray(obj.children)) return (obj.children as unknown[]).map(extractText).join('');
+    if (obj.props && typeof obj.props === 'object') {
+      return extractText((obj.props as { children?: unknown }).children);
+    }
+  }
+  return '';
+}
+
+function slugify(text: string): string {
+  return text
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, '-')
+    .replace(/[^\w-]/g, '')
+    .replace(/-+/g, '-')
+    .slice(0, 60);
+}
+
+function headingComponent(level: number) {
+  return function Heading({
+    node,
+    children,
+    ...props
+  }: HTMLAttributes<HTMLHeadingElement> & { node?: unknown }) {
+    const Tag = `h${level}` as 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6';
+    const text = extractText(node) || extractText(children);
+    const id = text ? slugify(text) : undefined;
+    return (
+      <Tag id={id} tabIndex={-1} {...props}>
+        {children}
+      </Tag>
+    );
+  };
+}
+
 function linkFromDoc(d: Document, linkType = 'wiki'): Link {
   return {
     id: d.id,
@@ -191,6 +235,7 @@ export default function WorkspacePage() {
   const searchParams = useSearchParams();
   const workspaceId = params.id;
   const selectedId = searchParams.get('doc') ?? null;
+  const pathParam = searchParams.get('path') ?? null;
 
   const [documents, setDocuments] = useState<Document[]>([]);
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
@@ -254,6 +299,14 @@ export default function WorkspacePage() {
       cancelled = true;
     };
   }, [workspaceId]);
+
+  useEffect(() => {
+    if (!pathParam || selectedId) return;
+    const match = documents.find((d) => d.path === pathParam);
+    if (match) {
+      router.replace(`/workspaces/${workspaceId}?doc=${match.id}`);
+    }
+  }, [pathParam, selectedId, documents, router, workspaceId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -485,6 +538,12 @@ export default function WorkspacePage() {
   const markdownComponents = useMemo(
     () => ({
       a: MarkdownLink,
+      h1: headingComponent(1),
+      h2: headingComponent(2),
+      h3: headingComponent(3),
+      h4: headingComponent(4),
+      h5: headingComponent(5),
+      h6: headingComponent(6),
     }),
     []
   );
@@ -729,6 +788,14 @@ export default function WorkspacePage() {
                 Attachments
               </NextLink>
 
+              <NextLink
+                href={`/workspaces/${workspaceId}/graph`}
+                className="rounded border border-border bg-muted px-2 py-1.5 text-sm text-foreground hover:bg-muted/80"
+                title="Graph view"
+              >
+                Graph
+              </NextLink>
+
               {isDirty && <span className="hidden text-xs text-amber-600 sm:inline">Unsaved</span>}
               {isSaving && <span className="text-xs text-muted-foreground">Saving…</span>}
               <button
@@ -785,9 +852,9 @@ export default function WorkspacePage() {
         </main>
 
         <aside className="hidden lg:flex lg:w-72 flex-col border-l border-border bg-card p-4">
-          <h2 className="font-semibold text-foreground">Links</h2>
+          <h2 className="font-semibold text-foreground">Note details</h2>
           {doc ? (
-            <div className="mt-4 flex flex-1 flex-col gap-6 overflow-auto">
+            <div className="mt-4 flex-1 space-y-6 overflow-auto">
               <section>
                 <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Outgoing</h3>
                 {outgoingLinks.length === 0 ? (
@@ -844,9 +911,11 @@ export default function WorkspacePage() {
                   </ul>
                 </section>
               )}
+              <OutlinePanel content={content} />
+              <FrontmatterPanel doc={doc} content={content} />
             </div>
           ) : (
-            <p className="mt-2 text-xs text-muted-foreground">Select a note to see its links.</p>
+            <p className="mt-2 text-xs text-muted-foreground">Select a note to see its links, outline, and properties.</p>
           )}
         </aside>
       </div>

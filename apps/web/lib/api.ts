@@ -51,7 +51,7 @@ export class ApiError extends Error {
   }
 }
 
-async function handleResponse<T>(res: Response): Promise<T> {
+export async function handleResponse<T>(res: Response): Promise<T> {
   if (!res.ok) {
     let text = '';
     try {
@@ -145,4 +145,22 @@ export async function askWorkspace(workspaceId: string, question: string): Promi
     body: JSON.stringify({ question }),
   });
   return handleResponse<AskResult>(res);
+}
+
+export interface GraphNode {
+  id: string;
+  path: string;
+  title: string | null;
+  type: string;
+}
+
+export interface GraphEdge {
+  source: string;
+  target: string;
+  type?: string;
+}
+
+export interface GraphData {
+  nodes: GraphNode[];
+  edges: GraphEdge[];
 }
