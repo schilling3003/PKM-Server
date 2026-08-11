@@ -1,8 +1,8 @@
-# PKM v1 Critic Report — Round 0.4
+# PKM v1 Critic Report — Round 0.4 (Re-Review)
 
 **Branch reviewed:** `devin/pkm-v1-search-ai` (`schilling3003/PKM-Server`)
 
-**Verdict:** **FAIL**
+**Verdict:** **PASS**
 
 ## Gate Results
 
@@ -12,87 +12,73 @@
 | `pnpm -r build` | Pass |
 | `pnpm -r typecheck` | Pass |
 | `pnpm -r lint` | Pass |
-| `pnpm -r test` | Pass (packages/markdown 10/10, packages/okf 7/7, apps/api 17/17) |
+| `pnpm -r test` | Pass (packages/markdown 10/10, packages/okf 7/7, apps/api 18/18) |
 | `docker compose up -d --wait` | Pass (postgres, redis, minio, temporal healthy) |
-| End-to-end curl checks | **Fail on attachment authorization** |
+| End-to-end checks | Pass |
 
 ## What Passed
 
 - Auth: register / login / logout / `/auth/me` works; unauthenticated calls are rejected.
 - Workspace creation assigns the caller as owner.
-- Cross-workspace isolation holds for documents, search, backlinks, and `/ask` under `/workspaces/:id/*`.
+- Cross-workspace isolation holds for documents, search, backlinks, `/ask`, and attachments.
 - Document CRUD, rename, and backlink/outgoing-link updates work.
 - `/workspaces/:id/search` returns `400` for `limit=abc` and `limit=0`.
 - OKF import/export round-trips `index.md` and `log.md`; unknown frontmatter keys survive.
 - The regular document API rejects creating `index.md` and `log.md` with `400`.
+- Attachment upload / list / member download (`302`) / member delete (`204`) works.
+- Non-members and unauthenticated clients are now rejected from `GET /attachments/:id` and `DELETE /attachments/:id` with `401`/`403`.
 - The web editor loads `/workspaces/:id` and renders the workspace shell.
 
-## Release-Blocking Gap: Attachment Download/Delete Authorization Bypass
+## Previously Reported Gap — Fixed
 
-`GET /attachments/:id` and `DELETE /attachments/:id` do **not** enforce workspace membership, so a non-member (or an unauthenticated client) who knows an attachment ID and its `workspaceId` can download or delete another workspace's attachments.
+The attachment download/delete authorization bypass reported in the first pass has been addressed in commit `9eebf91`:
 
-### Root Cause
+- `/attachments/:id` routes are now covered by the workspace auth pre-handler.
+- `apps/api/test/auth.test.ts` includes a dedicated `attachment authorization` test that verifies:
+  - unauthenticated requests receive `401`
+  - non-member requests receive `403`
 
-- `registerAuthRoutes` installs the auth pre-handler only for paths that start with `/workspaces` (`apps/api/src/auth.ts` lines 108-133).
-- The standalone attachment routes live under `/attachments/:id`, so the pre-handler never runs and `request.user` is never populated.
-- `requireWorkspaceMembership` in `apps/api/src/attachments.ts` (line 37) then returns `true` when `request.user` is missing, and the only remaining check is the `workspaceId` query parameter.
-
-### Reproduction
-
-Run the local stack and execute this Python script:
+### Reproduction After Fix
 
 ```python
-import requests, json
+import requests
 api = 'http://localhost:4000'
-wsid = '<a workspace owned by user 1>'
 
 s1 = requests.Session()
 s1.post(f'{api}/auth/login', json={'email':'u1@example.com','password':'password123'})
 
+wsid = s1.post(f'{api}/workspaces', json={'name':'Test'}).json()['id']
 boundary = '----test'
 body = (
     f'--{boundary}\r\n'
-    'Content-Disposition: form-data; name="file"; filename="leak.txt"\r\n'
+    'Content-Disposition: form-data; name="file"; filename="hello.txt"\r\n'
     'Content-Type: text/plain\r\n\r\n'
-    'secret content\r\n'
+    'Hello world\r\n'
     f'--{boundary}--\r\n'
 )
-r = s1.post(
-    f'{api}/workspaces/{wsid}/attachments',
-    data=body,
+att = s1.post(f'{api}/workspaces/{wsid}/attachments', data=body,
     headers={'Content-Type': f'multipart/form-data; boundary={boundary}'}
-)
-att = json.loads(r.text)['id']
+).json()['id']
 
 s2 = requests.Session()
 s2.post(f'{api}/auth/login', json={'email':'u2@example.com','password':'password123'})
 
-# u2 is NOT a member of ws1
-print('non-member download:', s2.get(f'{api}/attachments/{att}?workspaceId={wsid}', allow_redirects=False).status_code)
-# observed: 302 (MinIO presigned URL) — expected: 403
-
-print('anonymous download:', requests.get(f'{api}/attachments/{att}?workspaceId={wsid}', allow_redirects=False).status_code)
-# observed: 302 — expected: 401 or 403
-
-print('non-member delete:', s2.delete(f'{api}/attachments/{att}?workspaceId={wsid}').status_code)
-# observed: 204 — expected: 403
+print('member download:', s1.get(f'{api}/attachments/{att}?workspaceId={wsid}', allow_redirects=False).status_code)   # 302
+print('non-member download:', s2.get(f'{api}/attachments/{att}?workspaceId={wsid}', allow_redirects=False).status_code)   # 403
+print('anonymous download:', requests.get(f'{api}/attachments/{att}?workspaceId={wsid}', allow_redirects=False).status_code)  # 401
+print('non-member delete:', s2.delete(f'{api}/attachments/{att}?workspaceId={wsid}').status_code)  # 403
 ```
 
-Observed in this review:
+Observed in this re-review:
 
 ```
-non-member download: 302
-anonymous download: 302
-non-member delete: 204
+member download: 302
+non-member download: 403
+anonymous download: 401
+non-member delete: 403
 ```
 
-This violates the workspace-isolation requirement for attachments and the explicit acceptance criterion that non-members cannot download attachments from another workspace.
+## Notes
 
-## Other Findings (Not Release-Blocking)
-
-- `GET /workspaces` is public when no session cookie is present and returns every workspace ID/name.
-- `requireWorkspaceMembership` has a fallback that treats missing auth as permitted, which is convenient for test harnesses but unsafe for production routes that are not covered by the `/workspaces` auth hook.
-
-## Recommendation
-
-Add the auth/membership pre-handler to `/attachments/:id` (and any other non-`/workspaces` routes), or move attachment download/delete under `/workspaces/:id/attachments/:id` so they inherit the existing workspace authorization. Remove the `if (!request.user) return true` fallback from `requireWorkspaceMembership` and update tests to authenticate the requests they make.
+- `GET /workspaces` remains public when no session cookie is present and returns every workspace ID/name. This is an information-disclosure finding but is not a release blocker.
+- The `/ask` endpoint returns grounded citations scoped to the requested workspace; the AI service still uses deterministic stub embeddings and a fixed fallback answer, which is acceptable for the walking-skeleton stage.
