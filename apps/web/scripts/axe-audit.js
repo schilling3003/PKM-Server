@@ -260,6 +260,7 @@ async function main() {
         { route: `/workspaces/${workspaceId}`, label: 'editor' },
         { route: `/workspaces/${workspaceId}/attachments`, label: 'attachments' },
         { route: `/workspaces/${workspaceId}/graph`, label: 'graph' },
+        { route: `/workspaces/${workspaceId}/okf`, label: 'okf' },
       ];
     } catch (e) {
       log('API setup failed, falling back to public routes:', e.message);
