@@ -15,7 +15,6 @@ jobs:
     runs-on: ubuntu-latest
 
     env:
-      NODE_ENV: development
       POSTGRES_USER: pkm
       POSTGRES_PASSWORD: pkm
       DATABASE_URL: postgresql://pkm:pkm@localhost:5432/pkm?schema=public
