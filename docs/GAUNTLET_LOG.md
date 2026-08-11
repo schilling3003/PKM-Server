@@ -87,3 +87,17 @@ clean shutdown.
 **Changes**: `apps/api/src/app.ts`, `apps/api/src/auth.ts`, `apps/api/src/attachments.ts`, `apps/api/test/auth.test.ts`, `apps/api/test/integration.test.ts`, `apps/api/test/attachments.test.ts`, `.github/workflows/ci.yml`, `docs/WORKSTREAMS.md`, `docs/GAUNTLET_LOG.md`.
 **Regressions**: None.
 **Blockers**: None.
+
+## Round 0.6 — Fresh critic review after round 0.5 security fixes
+
+**Date**: 2026-08-11
+**Coordinator**: Devin
+**Verdict**: FAIL — four release blockers identified.
+- Round 0.5 critic reviewed `devin/pkm-v1-search-ai` after the workspace-auth fix. Build, typecheck, lint, tests, and local stack pass; most user journeys work.
+- Release blockers: (RB-1) `/auth/logout` does not invalidate the signed cookie server-side; (RB-2) login/register redirects to missing `/workspaces` route; (RB-3) attachment upload trusts extension/content-type; (RB-4) YAML frontmatter parsing has no alias/length limits.
+- Several high findings from `SECURITY_REVIEW.md` remain open (CSP, rate limiting, AI auth, `/health` info leak, CORS, search length). These are being addressed by the workstream 13 security hardening child.
+**Evidence**: Critic report `devin/pkm-v1-critic-round-0-5` branch; all gates passed locally; browser verification shows the 404 after login.
+**Decisive gap**: Logout/server-side session invalidation, attachment content validation, YAML limits, and login redirect.
+**Changes**: None yet; fixes queued in workstream 13 security hardening and will be re-reviewed.
+**Regressions**: None.
+**Blockers**: Security hardening child in flight.
