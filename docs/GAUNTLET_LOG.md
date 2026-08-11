@@ -473,3 +473,18 @@ clean shutdown.
 **Changes**: `apps/ai/src/main.py`, `apps/api/src/ai.ts`, `apps/api/src/ask.ts`, `apps/api/src/propose.ts`, `apps/api/test/propose.test.ts`, `apps/web/lib/api.ts`, `apps/web/app/workspaces/[id]/diff/page.tsx`, `.devin/skills/testing-pkm-search-ai/SKILL.md`, `docs/TEST_REPORT_final_v2.md`, `docs/WORKSTREAMS.md`, `docs/GAUNTLET_LOG.md`.
 **Regressions**: None.
 **Blockers**: Awaiting the fresh final critic (`devin-a5c8953b2a574861bce737ec7621ed5e`) for a binary PASS/FAIL verdict.
+
+## Round 1.17 — Final v3 critic PASS and v1 completion
+
+**Date**: 2026-08-11
+**Coordinator**: Devin
+**Verdict**: v1 complete. Final Gauntlet critic returned `PASS` and no release blockers remain.
+|- Final v3 critic (`devin-a5c8953b2a574861bce737ec7621ed5e`) reviewed `devin/pkm-v1-search-ai` at `86029fc` and verified the no-LLM `/propose` fallback, Ask warning, workspace isolation, OKF round-trip, performance budgets, accessibility audit, resilience tests, and all quality gates.
+|- Final v3 end-to-end test (`docs/TEST_REPORT_final_v3.md`) and critic report (`docs/CRITIC_REPORT_final_v3.md`) merged.
+|- Fixed `Ctrl+S` shortcut handling directly in the workspace editor textarea `keydown` handler (`apps/web/app/workspaces/[id]/page.tsx`).
+
+**Evidence**: `pnpm -r typecheck`, `pnpm -r lint`, `pnpm -r test`, `pnpm -r build` pass; `pnpm audit --prod` clean; `RUN_RESILIENCE_TESTS=1 pnpm --filter @pkm/api test test/resilience.test.ts` passes 6/6; `apps/web/scripts/axe-audit.js` reports no critical or serious violations on `/`, `/login`, `/workspaces/:id`, `/ask`, `/diff`, `/attachments`, `/graph`, and `/okf`.
+**Decisive gap**: None.
+**Changes**: `apps/web/app/workspaces/[id]/page.tsx`, `docs/TEST_REPORT_final_v3.md`, `docs/CRITIC_REPORT_final_v3.md`, `docs/WORKSTREAMS.md`, `docs/GAUNTLET_LOG.md`.
+**Regressions**: None.
+**Blockers**: None.

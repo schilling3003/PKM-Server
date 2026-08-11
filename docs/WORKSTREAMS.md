@@ -24,7 +24,7 @@
 | 18 | Revision history API and UI (list/restore previous versions) | child-revisions (`devin/pkm-v1-revisions`) | done (merged) | 2, 3 |
 | 19 | Performance, resilience, and recovery tests (100k note, 10k workspace, restart, failed indexing) | child-perf (`devin/pkm-v1-perf`) | done (merged) | all |
 | 20 | Accessibility audit and keyboard navigation polish | child-a11y (`devin/pkm-v1-a11y`) | done (merged) | 3, 4, 11 |
-| 21 | Final Gauntlet integration, clean checkout reproducibility, and PR readiness | coordinator | in_progress (merged RB-1, RB-2, RB-3; final v2 tester merged; propose no-LLM fallback fixed; awaiting final re-critic) | all |
+| 21 | Final Gauntlet integration, clean checkout reproducibility, and PR readiness | coordinator | done (all release blockers resolved; final v3 critic PASS; v1 complete) | all |
 | 22 | OKF import/export UI (workspace-level export and bundle import) | child-okf-ui (`devin/pkm-v1-okf-ui`) | done (merged) | 10 |
 | 23 | Public landing authentication redirect and axe contrast fixes | coordinator | done | 9, 11 |
 
