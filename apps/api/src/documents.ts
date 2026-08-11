@@ -5,6 +5,29 @@ import type { PoolClient } from 'pg';
 import { pool } from './db.js';
 import { generateChunks, embedChunks } from './chunks.js';
 
+const MAX_DOCUMENT_BYTES = 1024 * 1024;
+
+class DocumentSizeError extends Error {
+  statusCode = 413;
+}
+
+function assertDocumentSize(content: string) {
+  if (Buffer.byteLength(content, 'utf-8') > MAX_DOCUMENT_BYTES) {
+    throw new DocumentSizeError('Document exceeds maximum size of 1 MiB');
+  }
+}
+
+function parseDocumentContent(content: string) {
+  assertDocumentSize(content);
+  try {
+    return parseCanonical(content);
+  } catch (err) {
+    const error = err instanceof Error ? err : new Error(String(err));
+    (error as { statusCode?: number }).statusCode = 400;
+    throw error;
+  }
+}
+
 export interface DocumentRow {
   id: string;
   workspace_id: string;
@@ -91,7 +114,7 @@ export async function createDocument(
 ): Promise<DocumentRow> {
   const normalized = normalizePath(path);
   assertConceptPath(normalized, options.allowReserved);
-  const parsed = parseCanonical(content);
+  const parsed = parseDocumentContent(content);
   const hash = parsed.hash;
   const title = computeTitle(parsed.frontmatter, normalized);
 
@@ -132,7 +155,7 @@ export async function updateDocument(
   if (!existing) throw new Error('Document not found');
 
   const content = updates.content ?? existing.content;
-  const parsed = parseCanonical(content);
+  const parsed = parseDocumentContent(content);
   const hash = parsed.hash;
   const title = computeTitle(parsed.frontmatter, updates.path ?? existing.path);
 

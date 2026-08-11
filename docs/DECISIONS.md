@@ -111,25 +111,61 @@ of objects with `path` and `content`). A future front can switch to parsed
 `OkfIndex`/`OkfLog` structures while still accepting the current content-based
 entries for backward compatibility.
 
-## AD-008: Markdown frontmatter parsing limits
+## AD-008: Server-side session invalidation blocklist
+
+**Decision**: Keep signed user-ID cookies but add a server-side blocklist for
+`/auth/logout` so the signed cookie cannot be reused before its `maxAge` expires.
+
+**Alternatives**: Replace signed cookies with opaque Redis-backed sessions, issue
+short-lived JWTs, or rotate the signing secret on every logout.
+
+**Evidence**: A blocklist keyed by the signed cookie value with a TTL equal to the
+cookie lifetime is the smallest change that closes the critical release blocker.
+It does not require a session table or secret rotation. The existing `Redis`
+connection is reused, with an in-memory fallback for test environments.
+
+**Reversibility**: Medium. Replacing this with full server-side sessions only affects
+`apps/api/src/session-blocklist.ts`, `apps/api/src/auth.ts`, and
+`apps/api/src/middleware/auth.ts`.
+
+## AD-009: Attachment content validation and proxy serving
+
+**Decision**: Validate attachment uploads by magic bytes against an allow-list of
+safe formats and proxy downloads through the API with `Content-Disposition: attachment`
+and `X-Content-Type-Options: nosniff`.
+
+**Alternatives**: Redirect to a presigned MinIO URL with `response-content-type` set
+from user-supplied values, or use a content-type allow-list without magic-byte checks.
+
+**Evidence**: Presigned redirects let the uploader control `response-content-type`
+and could serve executable or HTML content. Magic-byte verification and proxy serving
+keeps the API in control of headers and content type. The object store remains an
+opaque blob backend.
+
+**Reversibility**: Low. The download contract changes from a 302 redirect to a 200
+with the body; clients must already follow the API route. Upload validation is additive.
+
+## AD-010: YAML frontmatter alias and document-size limits
 
 **Decision**: Cap canonical document size at 1 MiB, frontmatter at 64 KiB, and
-YAML aliases at 100. Parse frontmatter YAML with `uniqueKeys: true` and
-`maxAliasCount: 100` and surface parse/validation failures as `400` responses.
+YAML aliases at 50. Parse frontmatter YAML with `uniqueKeys: true` and
+`maxAliasCount: 50` and surface parse/validation failures as `400` responses via a
+`DocumentValidationError` with `statusCode: 400`.
 
-**Alternatives**: Use a separate YAML parser, restrict all frontmatter to a
-fixed schema, or rely on process-level memory limits.
+**Alternatives**: Use a separate YAML parser, restrict all frontmatter to a fixed
+schema, rely on process-level memory limits, or validate only source-string length.
 
 **Evidence**: A 3-level alias bomb can expand to a ~700 KB object from a tiny
 frontmatter string, causing per-request CPU/memory exhaustion. The `yaml` package
-provides `maxAliasCount`; byte limits prevent oversized notes and frontmatter.
-A `DocumentValidationError` mapped to `400` keeps the API from crashing or
-returning misleading 500s for malformed user input.
+exposes `maxAliasCount` and `uniqueKeys` but does not support `maxLength` or
+`maxDocumentLength` in the version used. Byte limits prevent oversized notes and
+frontmatter; `DocumentValidationError` keeps the API from crashing or returning
+misleading 500s for malformed user input.
 
-**Reversibility**: Low. These are numeric safety limits and can be raised or
-made configurable via environment variables without schema changes.
+**Reversibility**: High. The limits are configured in `packages/markdown/src/parser.ts`
+and `apps/api/src/documents.ts` and can be adjusted without schema changes.
 
-## AD-009: Post-login redirect target
+## AD-011: Post-login redirect target
 
 **Decision**: After successful registration or login, redirect the web UI to `/`
 (the home page, which lists the user's workspaces) rather than `/workspaces`,

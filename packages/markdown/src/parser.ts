@@ -10,9 +10,11 @@ export interface CanonicalDocument {
 }
 
 export class DocumentValidationError extends Error {
+  statusCode: number;
   constructor(message: string) {
     super(message);
     this.name = 'DocumentValidationError';
+    this.statusCode = 400;
   }
 }
 
@@ -21,7 +23,7 @@ const FRONTMATTER_RE = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n)?/;
 // Defensive limits to prevent DoS from YAML bombs or huge notes.
 export const MAX_DOCUMENT_BYTES = 1 * 1024 * 1024; // 1 MiB
 export const MAX_FRONTMATTER_BYTES = 64 * 1024; // 64 KiB
-export const MAX_YAML_ALIAS_COUNT = 100;
+export const MAX_YAML_ALIAS_COUNT = 50;
 
 function normalizeLineEndings(text: string): string {
   return text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');

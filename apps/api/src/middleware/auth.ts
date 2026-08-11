@@ -1,5 +1,6 @@
 import type { FastifyRequest, FastifyReply } from 'fastify';
 import { query } from '../db.js';
+import type { SessionBlocklist } from '../session-blocklist.js';
 
 export const SESSION_COOKIE = 'pkm_session';
 
@@ -12,6 +13,11 @@ declare module 'fastify' {
 async function resolveUser(request: FastifyRequest) {
   const raw = request.cookies[SESSION_COOKIE];
   if (!raw) return null;
+
+  const blocklist = (request.server as any).sessionBlocklist as SessionBlocklist | undefined;
+  if (blocklist && (await blocklist.isBlocked(raw))) {
+    return null;
+  }
 
   const unsigned = request.unsignCookie(raw);
   if (!unsigned.valid || !unsigned.value) return null;

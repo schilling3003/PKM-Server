@@ -1,6 +1,10 @@
 import { Pool } from 'pg';
 
-const databaseUrl = process.env.DATABASE_URL || 'postgresql://pkm:pkm@localhost:5432/pkm';
+const rawDatabaseUrl = process.env.DATABASE_URL;
+if (process.env.NODE_ENV === 'production' && !rawDatabaseUrl) {
+  throw new Error('DATABASE_URL is required in production');
+}
+const databaseUrl = rawDatabaseUrl || 'postgresql://pkm:pkm@localhost:5432/pkm';
 
 export const pool = new Pool({ connectionString: databaseUrl, max: 10 });
 

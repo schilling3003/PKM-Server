@@ -10,7 +10,18 @@ type App = Awaited<ReturnType<typeof buildApp>>;
 let app: App;
 
 beforeAll(async () => {
+  // Raise rate limits so the auth workflow tests are not throttled.
+  process.env.RATE_LIMIT_AUTH_IP_MAX = '100';
+  process.env.RATE_LIMIT_AUTH_ACCOUNT_MAX = '100';
+  process.env.RATE_LIMIT_SEARCH_IP_MAX = '100';
+  process.env.RATE_LIMIT_SEARCH_ACCOUNT_MAX = '100';
+  process.env.RATE_LIMIT_ASK_IP_MAX = '100';
+  process.env.RATE_LIMIT_ASK_ACCOUNT_MAX = '100';
+
   await migrate(pool);
+  await pool.query(
+    'TRUNCATE users, workspace_members, workspaces, documents, revisions, document_links, document_chunks, attachments CASCADE'
+  );
   app = await buildApp({ logger: false });
   await registerAuthRoutes(app);
   await registerAttachmentRoutes(app);
@@ -113,9 +124,17 @@ describe('auth routes', () => {
     expect(bad.statusCode).toBe(401);
   });
 
-  it('logs out and clears the session cookie', async () => {
+  it('logs out and invalidates the session server-side', async () => {
     const reg = await register('out@example.com', 'password123');
     const cookie = extractSessionCookie(reg);
+
+    const before = await app.inject({
+      method: 'GET',
+      url: '/auth/me',
+      ...withCookie(cookie),
+    });
+    expect(before.statusCode).toBe(200);
+
     const logoutRes = await app.inject({
       method: 'POST',
       url: '/auth/logout',
@@ -128,8 +147,19 @@ describe('auth routes', () => {
       : logoutRes.headers['set-cookie'];
     expect(setCookie).toContain('pkm_session=;');
 
-    const me = await app.inject({ method: 'GET', url: '/auth/me' });
-    expect(me.statusCode).toBe(401);
+    const after = await app.inject({
+      method: 'GET',
+      url: '/auth/me',
+      ...withCookie(cookie),
+    });
+    expect(after.statusCode).toBe(401);
+
+    const workspaces = await app.inject({
+      method: 'GET',
+      url: '/workspaces',
+      ...withCookie(cookie),
+    });
+    expect(workspaces.statusCode).toBe(401);
   });
 });
 

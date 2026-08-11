@@ -24,7 +24,11 @@ const MAX_FILE_SIZE = 10 * 1024 * 1024;
 
 const S3_ENDPOINT = process.env.S3_ENDPOINT || 'http://localhost:9000';
 const S3_ACCESS_KEY = process.env.S3_ACCESS_KEY || 'minioadmin';
-const S3_SECRET_KEY = process.env.S3_SECRET_KEY || 'minioadmin';
+const rawS3SecretKey = process.env.S3_SECRET_KEY;
+if (process.env.NODE_ENV === 'production' && !rawS3SecretKey) {
+  throw new Error('S3_SECRET_KEY is required in production');
+}
+const S3_SECRET_KEY = rawS3SecretKey || 'minioadmin';
 const S3_BUCKET = process.env.S3_BUCKET || 'pkm';
 const S3_REGION = process.env.S3_REGION || 'us-east-1';
 
@@ -49,28 +53,78 @@ async function requireWorkspaceMembership(
   return true;
 }
 
-const BLOCKED_EXTENSIONS = new Set([
-  '.exe', '.dll', '.bat', '.cmd', '.sh', '.com', '.msi', '.jar', '.ps1',
-  '.vbs', '.js', '.jse', '.wsf', '.php', '.py', '.pyc', '.rb', '.pl',
+// Allowed attachment formats. Anything not on this list is rejected.
+const ALLOWED_IMAGE_TYPES = new Map<
+  string,
+  { extensions: Set<string>; magic: (buffer: Buffer) => boolean }
+>([
+  ['image/png', { extensions: new Set(['.png']), magic: isPng }],
+  ['image/jpeg', { extensions: new Set(['.jpg', '.jpeg']), magic: isJpeg }],
+  ['image/gif', { extensions: new Set(['.gif']), magic: isGif }],
+  ['image/webp', { extensions: new Set(['.webp']), magic: isWebp }],
 ]);
 
-const BLOCKED_CONTENT_TYPES = new Set([
-  'application/x-msdownload',
-  'application/x-executable',
-  'application/x-msdos-program',
-  'application/x-bat',
-  'application/x-sh',
-  'application/x-csh',
-  'application/x-php',
-  'application/x-python-code',
-  'application/x-python',
-  'application/javascript',
-  'application/ecmascript',
-  'application/x-javascript',
-  'text/javascript',
-  'text/ecmascript',
-  'text/x-javascript',
+const ALLOWED_PDF_TYPE = {
+  type: 'application/pdf',
+  extensions: new Set(['.pdf']),
+  magic: isPdf,
+};
+
+const ALLOWED_TEXT_TYPES = new Map<string, Set<string>>([
+  ['text/plain', new Set(['.txt', '.text'])],
+  ['text/markdown', new Set(['.md', '.markdown', '.mkd'])],
 ]);
+
+function isPng(buffer: Buffer): boolean {
+  return (
+    buffer.length >= 8 &&
+    buffer[0] === 0x89 &&
+    buffer[1] === 0x50 &&
+    buffer[2] === 0x4e &&
+    buffer[3] === 0x47 &&
+    buffer[4] === 0x0d &&
+    buffer[5] === 0x0a &&
+    buffer[6] === 0x1a &&
+    buffer[7] === 0x0a
+  );
+}
+
+function isJpeg(buffer: Buffer): boolean {
+  return buffer.length >= 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff;
+}
+
+function isGif(buffer: Buffer): boolean {
+  return buffer.length >= 6 && (buffer.toString('ascii', 0, 6) === 'GIF87a' || buffer.toString('ascii', 0, 6) === 'GIF89a');
+}
+
+function isWebp(buffer: Buffer): boolean {
+  return (
+    buffer.length >= 12 &&
+    buffer.toString('ascii', 0, 4) === 'RIFF' &&
+    buffer.toString('ascii', 8, 12) === 'WEBP'
+  );
+}
+
+function isPdf(buffer: Buffer): boolean {
+  return buffer.length >= 5 && buffer.toString('ascii', 0, 5) === '%PDF-';
+}
+
+function isValidUtf8(buffer: Buffer): boolean {
+  try {
+    new TextDecoder('utf-8', { fatal: true }).decode(buffer);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+const HTML_TAG_RE = /<\s*(html|script|svg|iframe|object|embed|meta|link|style|body|head|title|form|input|img|video|audio|source|applet)/i;
+
+function isSafeText(buffer: Buffer): boolean {
+  if (buffer.includes(0)) return false;
+  if (!isValidUtf8(buffer)) return false;
+  return !HTML_TAG_RE.test(buffer.toString('utf-8', 0, Math.min(buffer.length, 4096)));
+}
 
 function getClient(): Client {
   const url = new URL(S3_ENDPOINT);
@@ -103,18 +157,50 @@ function sanitizeFilename(filename: string): string {
   return cleaned;
 }
 
-function isAllowedFile(filename: string, contentType: string): boolean {
-  const ext = path.extname(filename).toLowerCase();
-  if (BLOCKED_EXTENSIONS.has(ext)) return false;
-  if (BLOCKED_CONTENT_TYPES.has(contentType.toLowerCase())) return false;
-  return true;
+interface ValidatedAttachment {
+  contentType: string;
 }
 
-function contentDisposition(filename: string, contentType: string): string {
-  const unsafe = ['text/html', 'application/xhtml+xml', 'image/svg+xml'];
-  const disposition = unsafe.includes(contentType.toLowerCase()) ? 'attachment' : 'inline';
+function validateAttachment(
+  buffer: Buffer,
+  filename: string,
+  claimedContentType: string
+): ValidatedAttachment | null {
+  const ext = path.extname(filename).toLowerCase();
+  const claimed = claimedContentType.toLowerCase().trim();
+
+  // First check binary image types by magic bytes.
+  for (const [type, config] of ALLOWED_IMAGE_TYPES) {
+    if (config.magic(buffer)) {
+      if (!config.extensions.has(ext)) return null;
+      // If the client claimed a different allowed type, reject the mismatch.
+      if (ALLOWED_IMAGE_TYPES.has(claimed) && claimed !== type) return null;
+      return { contentType: type };
+    }
+  }
+
+  // Then PDF.
+  if (ALLOWED_PDF_TYPE.magic(buffer)) {
+    if (!ALLOWED_PDF_TYPE.extensions.has(ext)) return null;
+    if (claimed === ALLOWED_PDF_TYPE.type || claimed === 'application/octet-stream') {
+      return { contentType: ALLOWED_PDF_TYPE.type };
+    }
+    return null;
+  }
+
+  // Text types have no reliable magic bytes; validate by extension and content.
+  const allowedTextExts = ALLOWED_TEXT_TYPES.get(claimed);
+  if (allowedTextExts && allowedTextExts.has(ext) && isSafeText(buffer)) {
+    return { contentType: claimed };
+  }
+
+  // HTML, SVG, executables, and unknown types are rejected.
+  return null;
+}
+
+function contentDisposition(filename: string): string {
   const safe = filename.replace(/"/g, '\\"');
-  return `${disposition}; filename="${safe}"`;
+  return `attachment; filename="${safe}"`;
 }
 
 async function resolveDocumentId(
@@ -196,11 +282,13 @@ export async function registerAttachmentRoutes(app: FastifyInstance) {
 
     const buffer = await data.toBuffer();
     const filename = sanitizeFilename(data.filename);
-    const contentType = data.mimetype || 'application/octet-stream';
+    const claimedContentType = data.mimetype || 'application/octet-stream';
 
-    if (!isAllowedFile(filename, contentType)) {
+    const validation = validateAttachment(buffer, filename, claimedContentType);
+    if (!validation) {
       return reply.status(400).send({ error: 'File type is not allowed' });
     }
+    const contentType = validation.contentType;
 
     const rawDocumentId = data.fields?.documentId;
     let documentId: string | null = null;
@@ -271,12 +359,18 @@ export async function registerAttachmentRoutes(app: FastifyInstance) {
 
     await ensureBucket();
     const client = getClient();
-    const respHeaders = {
-      'response-content-disposition': contentDisposition(attachment.filename, attachment.content_type),
-      'response-content-type': attachment.content_type,
-    };
-    const url = await client.presignedGetObject(S3_BUCKET, attachment.storage_key, 3600, respHeaders);
-    return reply.redirect(url, 302);
+    try {
+      const stream = await client.getObject(S3_BUCKET, attachment.storage_key);
+      return reply
+        .status(200)
+        .header('Content-Type', attachment.content_type)
+        .header('Content-Disposition', contentDisposition(attachment.filename))
+        .header('X-Content-Type-Options', 'nosniff')
+        .header('Content-Length', String(attachment.size_bytes))
+        .send(stream);
+    } catch (err) {
+      return reply.status(404).send({ error: 'Attachment not found' });
+    }
   });
 
   app.delete('/attachments/:id', async (req, reply) => {

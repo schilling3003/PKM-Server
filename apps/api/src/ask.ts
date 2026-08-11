@@ -1,4 +1,5 @@
 import { hybridSearch } from './search.js';
+import { generateAnswer } from './ai.js';
 
 interface Citation {
   id: string;
@@ -36,17 +37,8 @@ export async function askWorkspace(workspaceId: string, question: string): Promi
 
   const prompt = `You are a helpful research assistant. Answer the user's question using ONLY the provided notes. Cite sources with [N] markers. If the notes do not contain enough information, say so.\n\nNotes:\n${context}\n\nQuestion: ${question}\n\nAnswer:`;
 
-  const aiUrl = process.env.AI_SERVICE_URL || 'http://localhost:8000';
   try {
-    const res = await fetch(`${aiUrl}/ask`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ prompt }),
-    });
-    if (!res.ok) {
-      throw new Error(`AI ask failed: ${res.status}`);
-    }
-    const data = (await res.json()) as { answer: string };
+    const data = await generateAnswer(prompt);
     return { answer: data.answer, citations };
   } catch (err) {
     // Fallback: return a grounded synthesis without an LLM call.
