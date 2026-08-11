@@ -27,7 +27,9 @@ application with AI as a native, inspectable capability.
 - `docker compose ps` shows all backing services healthy.
 - `pnpm -r typecheck` runs TypeScript checks across the monorepo.
 - `pnpm -r lint` runs linting.
-- `pnpm -r test` runs the test suites.
+- `pnpm -r build` compiles the shared packages and apps (required before tests because `@pkm/markdown`, `@pkm/shared`, and `@pkm/okf` are consumed from `dist/`).
+- `pnpm -r test` runs the test suites. API/integration tests require the Docker Compose stack to be running.
+- On a fresh checkout, run in order: `pnpm install`, `pnpm -r build`, `pnpm -r test`.
 
 ## Project structure
 
