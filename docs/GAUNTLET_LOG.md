@@ -380,3 +380,37 @@ clean shutdown.
 **Decisive gap**: None.
 **Regressions**: None.
 **Blockers**: Awaiting the fresh final critic (`devin-6eca8b3f30094479b4b23830324d6ced`) for a binary PASS/FAIL verdict.
+
+## Round 1.12 — Final critic verdict: three release blockers identified
+
+**Date**: 2026-08-11
+**Coordinator**: Devin
+**Verdict**: The final critic returned `FAIL` with three release blockers plus documentation cleanup.
+- **RB-1**: Primary AI journeys (`/ask` and AI diff/approval) are not reachable from the web UI, and the AI diff/approval feature is not implemented.
+- **RB-2**: OKF import/export is API-only with no web UI.
+- **RB-3**: Unauthenticated `/` exposes an `ApiError: Unauthorized` banner with a serious axe-core color-contrast violation.
+- **RB-4** (high): `docs/WORKSTREAMS.md` overstates workstream 7 (diff editing) as done.
+- **RB-5** (medium): `docs/SECURITY.md` open-hardening list contains stale entries now implemented.
+
+**Evidence**: `docs/CRITIC_REPORT_final.md` on `devin/pkm-v1-critic-final`; PR #3 comment at `https://github.com/schilling3003/PKM-Server/pull/3#issuecomment-5256911177`.
+**Decisive gap**: Missing Ask/AI-diff UI and OKF UI are the largest product-level gaps.
+**Changes**: None yet; fixes queued as workstreams 8 (Ask + AI diff), 22 (OKF UI), and 23 (public landing redirect).
+**Regressions**: None.
+**Blockers**: RB-1, RB-2, RB-3.
+
+## Round 1.13 — Workstream 23: public landing redirect and axe contrast fixes
+
+**Date**: 2026-08-11
+**Coordinator**: Devin
+**Verdict**: The public landing page no longer triggers a serious axe violation.
+- Updated `apps/web/proxy.ts` to redirect unauthenticated requests for `/` and `/workspaces/*` to `/login`, and to redirect authenticated `/login` requests to `/`.
+- Updated `docs/SECURITY.md` to retire implemented mitigations from the open-hardening list.
+- Reconciled `docs/WORKSTREAMS.md` workstream 7 (AI answers API) and workstream 8 (Ask UI + AI diff/approval), and added workstreams 22 (OKF UI) and 23 (public landing).
+- Ran `pnpm -r typecheck/lint/test/build` and `pnpm audit --prod`; all pass.
+- Ran `apps/web/scripts/axe-audit.js` with `AXE_SERVE=1 AXE_PUBLIC_ONLY=1`: `PASSED: no critical or serious violations found` for `/login` and public `/`.
+
+**Evidence**: Quality suite output; axe audit log.
+**Decisive gap**: None.
+**Changes**: `apps/web/proxy.ts`, `docs/SECURITY.md`, `docs/WORKSTREAMS.md`, `docs/GAUNTLET_LOG.md`.
+**Regressions**: None.
+**Blockers**: Awaiting child sessions for workstream 8 (Ask + AI diff) and workstream 22 (OKF UI).

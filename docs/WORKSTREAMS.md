@@ -26,7 +26,7 @@
 | 20 | Accessibility audit and keyboard navigation polish | child-a11y (`devin/pkm-v1-a11y`) | done (merged) | 3, 4, 11 |
 | 21 | Final Gauntlet integration, clean checkout reproducibility, and PR readiness | coordinator | in_progress (awaiting RB-1, RB-2, RB-3 fixes) | all |
 | 22 | OKF import/export UI (workspace-level export and bundle import) | coordinator | in_progress | 10 |
-| 23 | Public landing authentication redirect and axe contrast fixes | coordinator | in_progress | 9, 11 |
+| 23 | Public landing authentication redirect and axe contrast fixes | coordinator | done | 9, 11 |
 
 ## Shared Contracts
 
