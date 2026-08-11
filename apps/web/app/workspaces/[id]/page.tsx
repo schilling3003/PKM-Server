@@ -207,17 +207,25 @@ export default function WorkspacePage() {
 
   useEffect(() => {
     let cancelled = false;
-    setLoadingDocs(true);
-    setError(null);
-    Promise.all([getWorkspace(workspaceId).catch(() => null), listWorkspaces(), listDocuments(workspaceId)])
+    Promise.resolve()
+      .then(() => {
+        if (cancelled) return;
+        setLoadingDocs(true);
+        setError(null);
+      })
+      .then(() => Promise.all([getWorkspace(workspaceId).catch(() => null), listWorkspaces(), listDocuments(workspaceId)]))
       .then(([ws, wss, docs]) => {
         if (cancelled) return;
         setWorkspace(ws ?? { id: workspaceId, name: workspaceId, created_at: '' });
         setWorkspaces(wss);
         setDocuments(docs.sort((a, b) => a.path.localeCompare(b.path)));
       })
-      .catch((e) => setError(String(e)))
-      .finally(() => setLoadingDocs(false));
+      .catch((e) => {
+        if (!cancelled) setError(String(e));
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingDocs(false);
+      });
     return () => {
       cancelled = true;
     };
@@ -225,71 +233,111 @@ export default function WorkspacePage() {
 
   useEffect(() => {
     let cancelled = false;
-    if (!selectedId) {
-      setDoc(null);
-      setContent('');
-      setIsDirty(false);
-      setOutgoingLinks([]);
-      setBacklinks([]);
-      setUnresolvedWikilinks([]);
-      return;
-    }
-    setLoadingDoc(true);
-    getDocument(workspaceId, selectedId)
-      .then((d) => {
+    Promise.resolve()
+      .then(() => {
         if (cancelled) return;
+        if (!selectedId) {
+          setDoc(null);
+          setContent('');
+          setIsDirty(false);
+          setOutgoingLinks([]);
+          setBacklinks([]);
+          setUnresolvedWikilinks([]);
+          setLoadingDoc(false);
+          return null;
+        }
+        setLoadingDoc(true);
+        setError(null);
+        return getDocument(workspaceId, selectedId);
+      })
+      .then((d) => {
+        if (cancelled || !d) return;
         setDoc(d);
         setContent(d.content);
         setIsDirty(false);
       })
-      .catch((e) => setError(String(e)))
-      .finally(() => setLoadingDoc(false));
+      .catch((e) => {
+        if (!cancelled) setError(String(e));
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingDoc(false);
+      });
     return () => {
       cancelled = true;
     };
   }, [workspaceId, selectedId]);
 
   useEffect(() => {
-    if (!doc) {
-      setOutgoingLinks([]);
-      setBacklinks([]);
-      setUnresolvedWikilinks([]);
-      return;
-    }
     let cancelled = false;
-    Promise.all([getOutgoingLinks(workspaceId, doc.id), getBacklinks(workspaceId, doc.id)])
-      .then(([out, back]) => {
+    Promise.resolve()
+      .then(() => {
         if (cancelled) return;
+        if (!doc) {
+          setOutgoingLinks([]);
+          setBacklinks([]);
+          setUnresolvedWikilinks([]);
+          return null;
+        }
+        const wikiLinks = extractWikiLinks(stripFrontmatter(doc.content));
+        const unresolved = wikiLinks
+          .map((l) => resolveWikiTarget(l.target))
+          .filter((target) => !documents.some((d) => d.path === target));
+        setUnresolvedWikilinks(Array.from(new Set(unresolved)));
+        return Promise.all([getOutgoingLinks(workspaceId, doc.id), getBacklinks(workspaceId, doc.id)]);
+      })
+      .then((result) => {
+        if (cancelled || !result || !doc) return;
+        const [out, back] = result;
         setOutgoingLinks(out.length ? out : buildOutgoingLinks(doc, documents));
         setBacklinks(back.length ? back : buildBacklinks(doc, documents));
       })
       .catch((e) => {
-        setError(String(e));
-        if (cancelled) return;
-        setOutgoingLinks(buildOutgoingLinks(doc, documents));
-        setBacklinks(buildBacklinks(doc, documents));
+        if (!cancelled) setError(String(e));
+        if (doc) {
+          setOutgoingLinks(buildOutgoingLinks(doc, documents));
+          setBacklinks(buildBacklinks(doc, documents));
+        }
       });
-
-    const wikiLinks = extractWikiLinks(stripFrontmatter(doc.content));
-    const unresolved = wikiLinks
-      .map((l) => resolveWikiTarget(l.target))
-      .filter((target) => !documents.some((d) => d.path === target));
-    setUnresolvedWikilinks(Array.from(new Set(unresolved)));
     return () => {
       cancelled = true;
     };
   }, [workspaceId, doc, documents]);
 
+  const handleSave = useCallback(async () => {
+    if (!doc || !isDirty) return;
+    setIsSaving(true);
+    try {
+      const body = textareaRef.current?.value ?? content;
+      const updated = await updateDocument(workspaceId, doc.id, { content: body });
+      setDoc(updated);
+      setDocuments((prev) =>
+        prev
+          .map((d) => (d.id === updated.id ? updated : d))
+          .sort((a, b) => a.path.localeCompare(b.path))
+      );
+      setIsDirty(false);
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setIsSaving(false);
+    }
+  }, [doc, isDirty, workspaceId, content]);
+
+  const saveRef = useRef(handleSave);
+  useEffect(() => {
+    saveRef.current = handleSave;
+  }, [handleSave]);
+
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 's') {
         e.preventDefault();
-        if (isDirty) handleSave();
+        if (isDirty) saveRef.current();
       }
     }
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [isDirty, content, doc]);
+  }, [isDirty]);
 
   const filteredDocuments = useMemo(() => {
     if (!search.trim()) return documents;
@@ -334,26 +382,6 @@ export default function WorkspacePage() {
     sortNode(root);
     return root.children;
   }, [filteredDocuments]);
-
-  async function handleSave() {
-    if (!doc || !isDirty) return;
-    setIsSaving(true);
-    try {
-      const body = textareaRef.current?.value ?? content;
-      const updated = await updateDocument(workspaceId, doc.id, { content: body });
-      setDoc(updated);
-      setDocuments((prev) =>
-        prev
-          .map((d) => (d.id === updated.id ? updated : d))
-          .sort((a, b) => a.path.localeCompare(b.path))
-      );
-      setIsDirty(false);
-    } catch (e) {
-      setError(String(e));
-    } finally {
-      setIsSaving(false);
-    }
-  }
 
   async function handleCreate() {
     const path = newNotePathRef.current.trim();
@@ -416,14 +444,6 @@ export default function WorkspacePage() {
       const next = new Set(prev);
       if (next.has(path)) next.delete(path);
       else next.add(path);
-      return next;
-    });
-  }
-
-  function expandFolder(path: string) {
-    setExpandedFolders((prev) => {
-      const next = new Set(prev);
-      next.add(path);
       return next;
     });
   }
