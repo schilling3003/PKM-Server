@@ -448,7 +448,7 @@ clean shutdown.
 - Documented the design in `docs/DECISIONS.md` AD-021.
 - Merged into `devin/pkm-v1-search-ai` with a minimal conflict-resolution in `apps/web/app/workspaces/[id]/page.tsx` to keep both the OKF and Ask/Propose navigation buttons.
 
-**Evidence**: `pnpm -r typecheck`, `pnpm -r lint`, `pnpm -r test`, `pnpm -r build` pass; `pnpm audit --prod` clean; Next.js emits `/workspaces/[id]/ask` and `/workspaces/[id]/diff`; `curl` smoke authenticated to `POST /workspaces/:id/ask` (200) and `POST /workspaces/:id/propose` (422 without a local LLM, proving route wired).
+**Evidence**: `pnpm -r typecheck`, `pnpm -r lint`, `pnpm -r test`, `pnpm -r build` pass; `pnpm audit --prod` clean; `RUN_RESILIENCE_TESTS=1 pnpm --filter @pkm/api test test/resilience.test.ts` passes 6/6; Next.js emits `/workspaces/[id]/ask` and `/workspaces/[id]/diff`; `apps/web/scripts/axe-audit.js` covers `/`, `/login`, editor, ask, diff, attachments, graph, and OKF and reports no critical or serious violations; `curl` smoke authenticated to `POST /workspaces/:id/ask` (200) and `POST /workspaces/:id/propose` (422 without a local LLM, proving route wired).
 **Decisive gap**: None.
 **Changes**: `apps/api/src/propose.ts`, `apps/api/src/app.ts`, `apps/api/src/auth.ts`, `apps/api/test/propose.test.ts`, `apps/web/lib/api.ts`, `apps/web/app/workspaces/[id]/ask/page.tsx`, `apps/web/app/workspaces/[id]/diff/page.tsx`, `apps/web/app/workspaces/[id]/page.tsx`, `docs/DECISIONS.md`, `docs/WORKSTREAMS.md`, `docs/GAUNTLET_LOG.md`.
 **Regressions**: None.
