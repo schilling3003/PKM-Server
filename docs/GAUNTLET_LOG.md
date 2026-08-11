@@ -104,3 +104,19 @@ clean shutdown.
 **Changes**: `apps/api/src/session-blocklist.ts`, `apps/api/src/auth.ts`, `apps/api/src/middleware/auth.ts`, `apps/api/src/attachments.ts`, `apps/api/src/app.ts`, `apps/api/src/index.ts`, `apps/api/src/documents.ts`, `packages/markdown/src/parser.ts`, `apps/web/app/login/page.tsx`, `apps/web/next.config.ts`, `apps/ai/src/main.py`, `apps/api/src/ai.ts`, `apps/api/src/db.ts`, `apps/api/src/rate-limit.ts`, `apps/api/test/auth.test.ts`, `apps/api/test/integration.test.ts`, `apps/api/test/attachments.test.ts`, `apps/api/test/rate-limit.test.ts`, `docs/SECURITY.md`, `docs/DECISIONS.md`, `docs/GAUNTLET_LOG.md`.
 **Regressions**: None.
 **Blockers**: None.
+
+## Round 0.7 — Graph, outline, and tags/properties panel integration
+
+**Date**: 2026-08-11
+**Coordinator**: Devin
+**Verdict**: Workstream 15 integrated and verified; `registerGraphRoutes` wired into `apps/api/src/index.ts`.
+- Merged the workstream 15 child branch (`devin/pkm-v1-graph-panel`) which added `GET /workspaces/:id/graph`, the web graph view (`app/workspaces/[id]/graph/page.tsx`), outline panel, and frontmatter tags/properties panel.
+- Resolved merge conflicts and adjusted the YAML alias-bomb integration test to a width of 30 to exceed the `maxAliasCount: 50` limit.
+- Re-ran `pnpm -r typecheck`, `pnpm -r lint`, `pnpm -r test`, and `pnpm -r build` after wiring the graph routes; all pass.
+- `curl` confirms the graph endpoint returns workspace-scoped nodes/edges and does not leak across workspaces.
+**Evidence**: `pnpm -r build/typecheck/lint/test` all pass; `curl` to `/workspaces/:id/graph` returns nodes and edges for workspace members only.
+**Critic report**: None yet for this round.
+**Decisive gap**: None.
+**Changes**: `apps/api/src/index.ts`, `apps/api/test/integration.test.ts`, `docs/GAUNTLET_LOG.md`.
+**Regressions**: None.
+**Blockers**: None.
