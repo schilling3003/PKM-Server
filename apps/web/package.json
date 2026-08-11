@@ -1,0 +1,39 @@
+{
+  "name": "@pkm/web",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "perf:page-load": "node scripts/benchmark-page-load.mjs",
+    "lint": "eslint",
+    "typecheck": "tsc --noEmit",
+    "test:axe": "node scripts/axe-audit.js",
+    "test": "node -e \"console.log('No web unit tests configured. Run pnpm --filter @pkm/web test:axe against a running dev server.')\""
+  },
+  "dependencies": {
+    "@pkm/markdown": "workspace:*",
+    "next": "16.3.0",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "react-markdown": "9.1.0",
+    "remark-gfm": "4.0.1"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@tailwindcss/typography": "^0.5.16",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "axe-core": "^4.10.2",
+    "eslint": "^9",
+    "eslint-config-next": "16.3.0",
+    "puppeteer-core": "^23.9.0",
+    "tailwindcss": "^4",
+    "typescript": "^5",
+    "lighthouse": "^12.5.1",
+    "chrome-launcher": "^1.1.2"
+  },
+  "packageManager": "pnpm@11.21.0"
+}

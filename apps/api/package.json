@@ -1,0 +1,41 @@
+{
+  "name": "@pkm/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc && node scripts/copy-migrations.cjs",
+    "start": "node dist/index.js",
+    "typecheck": "tsc --noEmit",
+    "lint": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests",
+    "test:resilience": "RUN_RESILIENCE_TESTS=1 vitest run test/resilience.test.ts",
+    "perf:search": "tsx scripts/perf/benchmark-search.ts",
+    "perf:note": "tsx scripts/perf/benchmark-note.ts"
+  },
+  "dependencies": {
+    "@fastify/cookie": "11.1.2",
+    "@fastify/cors": "^11.0.0",
+    "@fastify/multipart": "10.1.0",
+    "@pkm/markdown": "workspace:*",
+    "@pkm/okf": "workspace:*",
+    "@pkm/shared": "workspace:*",
+    "bcryptjs": "^2.4.3",
+    "dotenv": "^16.4.7",
+    "fastify": "^5.2.1",
+    "minio": "8.0.7",
+    "pg": "^8.13.1",
+    "pgvector": "^0.2.0",
+    "redis": "^4.7.0",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/node": "^20.19.43",
+    "@types/pg": "^8.11.10",
+    "tsx": "^4.19.2",
+    "typescript": "^5.9.3",
+    "vitest": "^3.0.0"
+  }
+}
