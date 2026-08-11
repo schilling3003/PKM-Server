@@ -1085,6 +1085,14 @@ export default function WorkspacePage() {
               </NextLink>
 
               <NextLink
+                href={`/workspaces/${workspaceId}/okf`}
+                className="rounded border border-border bg-muted px-2 py-1.5 text-sm text-foreground hover:bg-muted/80"
+                title="OKF import / export"
+              >
+                OKF
+              </NextLink>
+
+              <NextLink
                 href={`/workspaces/${workspaceId}/ask`}
                 className="rounded border border-border bg-muted px-2 py-1.5 text-sm text-foreground hover:bg-muted/80"
                 title="Ask workspace (Ctrl+Shift+A / Cmd+Shift+A)"
@@ -1098,14 +1106,6 @@ export default function WorkspacePage() {
                 title="Propose edit (Ctrl+Shift+D / Cmd+Shift+D)"
               >
                 Propose
-              </NextLink>
-
-              <NextLink
-                href={`/workspaces/${workspaceId}/okf`}
-                className="rounded border border-border bg-muted px-2 py-1.5 text-sm text-foreground hover:bg-muted/80"
-                title="OKF import / export"
-              >
-                OKF
               </NextLink>
               {isDirty && <span className="hidden text-xs text-amber-600 sm:inline">Unsaved</span>}
               {isSaving && <span className="text-xs text-muted-foreground">Saving…</span>}

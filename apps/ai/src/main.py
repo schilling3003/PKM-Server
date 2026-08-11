@@ -167,6 +167,8 @@ class AskRequest(BaseModel):
 
 class AskResponse(BaseModel):
     answer: str
+    warning: str | None = None
+    no_llm: bool | None = None
 
 
 # System prompt with explicit grounded-answer and prompt-injection refusal
@@ -190,12 +192,18 @@ async def ask(req: AskRequest):
     question = req.question or ""
 
     if not LLM_BASE_URL or not LLM_API_KEY:
+        warning = (
+            "No configured language model. Set LLM_BASE_URL, LLM_API_KEY, and optionally "
+            "LLM_MODEL to enable AI-proposed edits and synthesized answers."
+        )
         return {
             "answer": (
                 "I reviewed the cited notes above, but this v1 instance does not have a "
                 "configured language model. Set LLM_BASE_URL, LLM_API_KEY, and optionally "
                 "LLM_MODEL to enable synthesized answers. Please check the cited sources directly."
-            )
+            ),
+            "warning": warning,
+            "no_llm": True,
         }
 
     if not context or not question:
@@ -228,7 +236,7 @@ async def ask(req: AskRequest):
         resp.raise_for_status()
         data = resp.json()
         answer = data["choices"][0]["message"]["content"].strip()
-        return {"answer": answer}
+        return {"answer": answer, "no_llm": False}
     except httpx.HTTPError as exc:
         raise HTTPException(status_code=503, detail=f"LLM request failed: {exc}")
     except (KeyError, IndexError, TypeError) as exc:

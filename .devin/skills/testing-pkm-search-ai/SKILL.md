@@ -60,8 +60,13 @@ Restart the API after changing `.env`.
 - The workspace ID shown in the Next.js URL is the canonical one returned by the API; copy it from `GET /workspaces` if the UI is blocked.
 - Attachments are uploaded to MinIO (`http://localhost:9000`) using the bucket and credentials from `.env`.
 - The AI `/ask` endpoint returns an answer only when `LLM_BASE_URL` / `LLM_API_KEY` are configured; otherwise it returns a no-LLM warning with citations.
+- `/propose` (`POST /workspaces/:id/propose`) requires a configured LLM to return valid JSON. For end-to-end tests without an external model, start a temporary OpenAI-compatible stub on `http://localhost:9999/v1` and set `LLM_BASE_URL=http://localhost:9999/v1` + `LLM_API_KEY=test-llm` when launching the AI service.
 - When starting `next start` in the background with `nohup`, use `env NEXT_BUILD_OUTPUT= pnpm --filter @pkm/web start` so the empty variable is passed correctly.
 - If small sidebar buttons (note-tree `dup`/`arch`, `Show archived`, right-sidebar `Restore`) do not respond to mouse clicks in the test harness, use keyboard `Tab`/`Enter` as a fallback.
 - The header Search button may not register mouse clicks in the harness; the shortcut `Ctrl+Shift+F` / `Cmd+Shift+F` opens the palette.
-- The `Logout` button may also need keyboard activation in the harness.
+- The `Logout` button and the note-tree `dup`/`arch`/`rename`/`×` buttons may need keyboard activation in the harness.
+- The `Apply`/`Reject` buttons on the `/diff` page may need keyboard activation; `Tab` to focus them and press `Enter`.
+- The `Ask` and `/diff` text inputs may not focus on click in the harness; `Tab` to the input before typing.
+- Axe audit: set `AXE_AUDIT_URL=http://localhost:3000 AXE_API_URL=http://localhost:4000 AXE_REPORT_FILE=/tmp/axe-report.json PUPPETEER_EXECUTABLE_PATH=/home/ubuntu/.local/bin/google-chrome` before `pnpm --filter @pkm/web test:axe`.
+- OKF import payload needs `concepts[].metadata.type` and `concepts[].document.body`; example: `'{"version":"0.2","concepts":[{"path":"rabbit.md","metadata":{"type":"Note"},"document":{"frontmatter":{"type":"Note"},"body":"A rabbit. See [[cat|the cat]]."}}]}'`.
 - Kill stale processes before re-running: `pkill -f 'next-server|uvicorn|node dist/index.js|tsx'`.

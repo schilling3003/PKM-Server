@@ -37,7 +37,8 @@ export async function askWorkspace(workspaceId: string, question: string): Promi
 
   try {
     const data = await generateAnswer({ context, question });
-    return { answer: data.answer, citations };
+    const warning = data.warning ?? (data.noLlm ? 'No configured language model.' : undefined);
+    return { answer: data.answer, citations, warning };
   } catch (err) {
     // Fallback: return a grounded synthesis without an LLM call.
     const summary = `Based on ${results.length} relevant note(s):\n${results.map((r) => `- ${r.path}: ${r.title ?? r.path}`).join('\n')}`;

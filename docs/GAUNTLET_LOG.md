@@ -432,30 +432,44 @@ clean shutdown.
 **Regressions**: None.
 **Blockers**: None.
 
-## Round 1.15 — Ask UI and AI-proposed diff/approval flow
+## Round 1.15 — Workstream 8: Ask UI and AI-proposed diff/approval flow
 
 **Date**: 2026-08-11
-**Coordinator**: Devin
+**Builder**: Devin (child session `devin-2a01ffba747a465383b06aacc7301ec7`)
 **Branch**: `devin/pkm-v1-ask-diff`
-**Verdict**: PASS (local gates passed; fresh critic not yet run)
-- Implemented the workspace-scoped Ask page at `/workspaces/[id]/ask` with a grounded-question input, `POST /workspaces/:id/ask` call, ReactMarkdown answer rendering, numbered citations that link back to the workspace editor, and warning display.
-- Added `Ctrl/Cmd+Shift+A` keyboard shortcut and an `Ask` button on the workspace page; added `Ctrl/Cmd+Shift+D` and a `Propose` button for the diff page.
-- Implemented the backend `POST /workspaces/:id/propose` route (`apps/api/src/propose.ts`) that resolves the target note by `documentId` or `path`, gathers workspace-scoped context, calls `generateAnswer` with a structured JSON prompt, and returns `{ originalPath, proposedPath, originalContent, proposedContent, explanation, citations }`.
-- Added frontend diff/preview panel at `/workspaces/[id]/diff` with original/proposed side-by-side text, explanation, citations, `Apply` (calls `PUT /workspaces/:id/documents/:id`), and `Reject` (navigates back). Canonical Markdown is not mutated without explicit approval.
-- Added `proposeEdit` and `ProposedEdit`/`Citation` types to `apps/web/lib/api.ts`.
-- Added `apps/api/test/propose.test.ts` covering valid proposal, path resolution, workspace-isolation, prompt-injection guardrail text in the LLM prompt, invalid JSON, path-traversal rejection, and input validation.
-- Wired `/propose` into the existing `/ask` rate-limit bucket in `apps/api/src/auth.ts`.
-- Documented the design in `docs/DECISIONS.md` AD-021 and updated `docs/WORKSTREAMS.md` workstream 8 to `done`.
+**Verdict**: Implemented and merged.
+- Added workspace-scoped Ask page at `/workspaces/[id]/ask` with grounded-question input, `POST /workspaces/:id/ask`, `react-markdown` answer rendering, numbered citations linking back to the editor, and warning display.
+- Added `Ctrl/Cmd+Shift+A` shortcut and `Ask` button on the workspace page.
+- Added backend `POST /workspaces/:id/propose` (`apps/api/src/propose.ts`) that resolves the target note by `documentId` or `path`, gathers workspace-scoped context via `hybridSearch`, and calls `generateAnswer` with a structured JSON prompt returning `{ path, content, explanation }`.
+- Added frontend diff/preview page at `/workspaces/[id]/diff` with original/proposed side-by-side, explanation, citations, `Apply` (calls `PUT /workspaces/:id/documents/:id`), and `Reject`. Canonical Markdown is not mutated without explicit approval.
+- Added `proposeEdit` and shared `Citation`/`ProposedEdit` types to `apps/web/lib/api.ts`.
+- Added `apps/api/test/propose.test.ts` covering valid proposal, path resolution, workspace isolation, prompt-injection guardrail text, invalid JSON, path-traversal rejection, and input validation.
+- Wired `/propose` into the `/ask` rate-limit bucket in `apps/api/src/auth.ts`.
+- Documented the design in `docs/DECISIONS.md` AD-021.
+- Merged into `devin/pkm-v1-search-ai` with a minimal conflict-resolution in `apps/web/app/workspaces/[id]/page.tsx` to keep both the OKF and Ask/Propose navigation buttons.
 
-**Evidence**:
-- `pnpm -r typecheck` pass
-- `pnpm -r lint` pass
-- `pnpm -r test` pass (49 API + 18 markdown + 7 OKF tests; 6 resilience tests run and passed with `RUN_RESILIENCE_TESTS=1`)
-- `pnpm -r build` pass; Next.js now emits `/workspaces/[id]/ask` and `/workspaces/[id]/diff` routes
-- `pnpm audit --prod` clean
-- Docker Compose stack healthy; `curl` smoke test authenticated to create a workspace/note and received `200` from `POST /workspaces/:id/ask` and a `422` from `POST /workspaces/:id/propose` (the latter because no LLM is configured locally, proving the route is wired and parsed)
-
+**Evidence**: `pnpm -r typecheck`, `pnpm -r lint`, `pnpm -r test`, `pnpm -r build` pass; `pnpm audit --prod` clean; `RUN_RESILIENCE_TESTS=1 pnpm --filter @pkm/api test test/resilience.test.ts` passes 6/6; Next.js emits `/workspaces/[id]/ask` and `/workspaces/[id]/diff`; `apps/web/scripts/axe-audit.js` covers `/`, `/login`, editor, ask, diff, attachments, graph, and OKF and reports no critical or serious violations; `curl` smoke authenticated to `POST /workspaces/:id/ask` (200) and `POST /workspaces/:id/propose` (422 without a local LLM, proving route wired).
 **Decisive gap**: None.
 **Changes**: `apps/api/src/propose.ts`, `apps/api/src/app.ts`, `apps/api/src/auth.ts`, `apps/api/test/propose.test.ts`, `apps/web/lib/api.ts`, `apps/web/app/workspaces/[id]/ask/page.tsx`, `apps/web/app/workspaces/[id]/diff/page.tsx`, `apps/web/app/workspaces/[id]/page.tsx`, `docs/DECISIONS.md`, `docs/WORKSTREAMS.md`, `docs/GAUNTLET_LOG.md`.
 **Regressions**: None.
 **Blockers**: None.
+
+## Round 1.16 — Propose no-LLM fallback and final v2 test report integration
+
+**Date**: 2026-08-11
+**Coordinator**: Devin
+**Verdict**: Propose now degrades gracefully without an external LLM; final v2 test report merged.
+- Merged `devin/pkm-v1-tester-final-v2` into `devin/pkm-v1-search-ai`, adding `docs/TEST_REPORT_final_v2.md`.
+- Updated `apps/ai/src/main.py` `AskResponse` to include `warning` and `no_llm` fields when no LLM is configured.
+- Updated `apps/api/src/ai.ts` to return `warning` and `noLlm` from `generateAnswer`.
+- Updated `apps/api/src/ask.ts` to surface the LLM warning in `AskResult`.
+- Updated `apps/api/src/propose.ts` to return a no-op `ProposedEdit` with a `warning` instead of a `422` JSON parse error when no LLM is configured.
+- Updated `apps/web/lib/api.ts` and `apps/web/app/workspaces/[id]/diff/page.tsx` to display the warning banner and disable `Apply` when there are no proposed changes.
+- Added `apps/api/test/propose.test.ts` coverage for the no-LLM fallback.
+- Updated `.devin/skills/testing-pkm-search-ai/SKILL.md` with OKF payload shape, LLM stub instructions, axe variables, and harness click fallbacks.
+
+**Evidence**: `pnpm -r typecheck`, `pnpm -r lint`, `pnpm -r test`, `pnpm -r build` pass; `pnpm audit --prod` clean; `RUN_RESILIENCE_TESTS=1 pnpm --filter @pkm/api test test/resilience.test.ts` passes 6/6.
+**Decisive gap**: None.
+**Changes**: `apps/ai/src/main.py`, `apps/api/src/ai.ts`, `apps/api/src/ask.ts`, `apps/api/src/propose.ts`, `apps/api/test/propose.test.ts`, `apps/web/lib/api.ts`, `apps/web/app/workspaces/[id]/diff/page.tsx`, `.devin/skills/testing-pkm-search-ai/SKILL.md`, `docs/TEST_REPORT_final_v2.md`, `docs/WORKSTREAMS.md`, `docs/GAUNTLET_LOG.md`.
+**Regressions**: None.
+**Blockers**: Awaiting the fresh final critic (`devin-a5c8953b2a574861bce737ec7621ed5e`) for a binary PASS/FAIL verdict.

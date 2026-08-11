@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import NextLink from 'next/link';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import {
@@ -118,6 +118,10 @@ export default function DiffPage() {
     router.push(`/workspaces/${workspaceId}${selectedDocumentId ? `?doc=${selectedDocumentId}` : ''}`);
   }
 
+  const hasChanges = useMemo(() => {
+    if (!proposal) return false;
+    return proposal.proposedPath !== proposal.originalPath || proposal.proposedContent !== proposal.originalContent;
+  }, [proposal]);
   return (
     <main id="main-content" className="flex h-screen flex-col bg-background text-foreground" role="main" aria-label="Proposed edit review">
       <header className="flex items-center justify-between border-b border-border bg-card px-4 py-2">
@@ -206,6 +210,18 @@ export default function DiffPage() {
               )}
             </div>
 
+            {proposal.warning && (
+              <div className="rounded bg-amber-100 p-3 text-sm text-amber-800 dark:bg-amber-900 dark:text-amber-100" role="status">
+                {proposal.warning}
+              </div>
+            )}
+
+            {!hasChanges && (
+              <div className="rounded border border-border bg-card p-3 text-sm text-muted-foreground" role="status">
+                No changes were proposed.
+              </div>
+            )}
+
             <div className="grid flex-1 grid-cols-1 gap-4 md:grid-cols-2">
               <div className="flex flex-col rounded border border-border bg-card">
                 <div className="border-b border-border px-3 py-2 text-sm font-semibold text-foreground">Original</div>
@@ -259,7 +275,8 @@ export default function DiffPage() {
               <button
                 type="button"
                 onClick={handleApply}
-                disabled={applying}
+                disabled={applying || !hasChanges}
+                title={!hasChanges ? 'No proposed changes to apply' : undefined}
                 className="rounded bg-primary px-4 py-2 text-sm text-primary-foreground hover:bg-primary/90 disabled:cursor-not-allowed disabled:bg-primary/50"
               >
                 {applying ? 'Applying…' : 'Apply'}
