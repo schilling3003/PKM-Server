@@ -160,6 +160,21 @@ describe('auth routes', () => {
       ...withCookie(cookie),
     });
     expect(workspaces.statusCode).toBe(401);
+
+    const loginAgain = await app.inject({
+      method: 'POST',
+      url: '/auth/login',
+      payload: { email: 'out@example.com', password: 'password123' },
+    });
+    expect(loginAgain.statusCode).toBe(200);
+
+    const newCookie = extractSessionCookie(loginAgain);
+    const afterReLogin = await app.inject({
+      method: 'GET',
+      url: '/auth/me',
+      ...withCookie(newCookie),
+    });
+    expect(afterReLogin.statusCode).toBe(200);
   });
 });
 

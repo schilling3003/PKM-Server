@@ -2,6 +2,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import * as bcrypt from 'bcrypt';
 import cookie from '@fastify/cookie';
 import { z } from 'zod';
+import { randomUUID } from 'node:crypto';
 import { query } from './db.js';
 import { requireAuth, SESSION_COOKIE } from './middleware/auth.js';
 import { createRateLimiter, RateLimiter, RateLimitConfig, RedisClient } from './rate-limit.js';
@@ -29,8 +30,11 @@ function userResponse(row: UserRow) {
   };
 }
 
-function setSessionCookie(reply: FastifyReply, userId: string, secret: string) {
-  reply.setCookie(SESSION_COOKIE, userId, {
+function setSessionCookie(reply: FastifyReply, userId: string) {
+  // Include a per-login session nonce so that logging back in after logout
+  // issues a fresh token and cannot be rejected by the blocklist.
+  const sessionToken = `${userId}:${randomUUID()}`;
+  reply.setCookie(SESSION_COOKIE, sessionToken, {
     signed: true,
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
@@ -126,7 +130,7 @@ export async function registerAuthRoutes(
       [body.email, hash]
     );
     const user = rows[0] as UserRow;
-    setSessionCookie(reply, user.id, secret);
+    setSessionCookie(reply, user.id);
     reply.status(201).send({ user: userResponse(user) });
   });
 
@@ -147,7 +151,7 @@ export async function registerAuthRoutes(
       return reply.status(401).send({ error: 'Invalid credentials' });
     }
 
-    setSessionCookie(reply, user.id, secret);
+    setSessionCookie(reply, user.id);
     reply.send({ user: userResponse(user) });
   });
 

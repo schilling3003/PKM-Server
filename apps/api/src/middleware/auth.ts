@@ -22,7 +22,10 @@ async function resolveUser(request: FastifyRequest) {
   const unsigned = request.unsignCookie(raw);
   if (!unsigned.valid || !unsigned.value) return null;
 
-  const { rows } = await query('SELECT id, email FROM users WHERE id = $1', [unsigned.value]);
+  const userId = unsigned.value.split(':', 1)[0];
+  if (!userId) return null;
+
+  const { rows } = await query('SELECT id, email FROM users WHERE id = $1', [userId]);
   if (!rows[0]) return null;
 
   return { id: rows[0].id as string, email: rows[0].email as string };
