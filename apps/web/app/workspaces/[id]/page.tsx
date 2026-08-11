@@ -502,10 +502,6 @@ export default function WorkspacePage() {
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 's') {
-        e.preventDefault();
-        if (isDirty) saveRef.current();
-      }
       if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === 'f') {
         e.preventDefault();
         setPaletteOpen((open) => !open);
@@ -523,7 +519,7 @@ export default function WorkspacePage() {
     }
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [isDirty, workspaceId, selectedId, router]);
+  }, [workspaceId, selectedId, router]);
 
   const filteredDocuments = useMemo(() => {
     const active = documents.filter((d) => !d.archived_at);
@@ -854,6 +850,12 @@ export default function WorkspacePage() {
   }
 
   function handleTextareaKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 's') {
+      e.preventDefault();
+      e.stopPropagation();
+      if (isDirty && !isSaving) saveRef.current();
+      return;
+    }
     if (wikilinkQuery === null) return;
     if (e.key === 'ArrowDown') {
       e.preventDefault();
