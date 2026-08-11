@@ -104,10 +104,29 @@ export async function registerAuthRoutes(app: FastifyInstance) {
   });
 
   // Attach optional authentication to /workspaces list/create,
-  // and require authentication + workspace membership for /workspaces/:id/*.
+  // and require authentication + workspace membership for /workspaces/:id/*
+  // and /attachments/:id?workspaceId=... download/delete routes.
   app.addHook('preHandler', async (request: FastifyRequest, reply: FastifyReply) => {
     const pathname = request.url.split('?')[0];
     const parts = pathname.split('/').filter(Boolean);
+
+    if (parts[0] === 'attachments' && parts[1]) {
+      await requireAuth(request, reply);
+      if (reply.sent) return;
+      const { workspaceId } = request.query as { workspaceId?: string };
+      if (!workspaceId) {
+        return reply.code(400).send({ error: 'workspaceId query parameter is required' });
+      }
+      const { rows } = await query(
+        'SELECT 1 FROM workspace_members WHERE workspace_id = $1 AND user_id = $2',
+        [workspaceId, request.user!.id]
+      );
+      if (rows.length === 0) {
+        return reply.code(403).send({ error: 'Forbidden' });
+      }
+      return;
+    }
+
     if (parts[0] !== 'workspaces') return;
 
     const workspaceId = parts[1];

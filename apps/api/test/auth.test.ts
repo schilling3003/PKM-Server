@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll, beforeEach, afterAll } from 'vitest';
 import { buildApp } from '../src/app.js';
 import { registerAuthRoutes } from '../src/auth.js';
+import { registerAttachmentRoutes } from '../src/attachments.js';
 import { pool } from '../src/db.js';
 import { migrate } from '../src/migrate.js';
 
@@ -12,6 +13,7 @@ beforeAll(async () => {
   await migrate(pool);
   app = await buildApp({ logger: false });
   await registerAuthRoutes(app);
+  await registerAttachmentRoutes(app);
 });
 
 beforeEach(async () => {
@@ -180,5 +182,31 @@ describe('workspace membership authorization', () => {
       ...withCookie(otherCookie),
     });
     expect(res.statusCode).toBe(403);
+  });
+});
+
+describe('attachment authorization', () => {
+  it('requires authentication and membership for /attachments/:id', async () => {
+    const { workspaceId, cookie } = await seedMemberWorkspace('attachowner@example.com');
+    const fakeId = '00000000-0000-0000-0000-000000000000';
+
+    const unauth = await app.inject({ method: 'GET', url: `/attachments/${fakeId}?workspaceId=${workspaceId}` });
+    expect(unauth.statusCode).toBe(401);
+
+    const other = await register('attachother@example.com', 'password123');
+    const otherCookie = extractSessionCookie(other)!;
+    const nonMember = await app.inject({
+      method: 'GET',
+      url: `/attachments/${fakeId}?workspaceId=${workspaceId}`,
+      ...withCookie(otherCookie),
+    });
+    expect(nonMember.statusCode).toBe(403);
+
+    const member = await app.inject({
+      method: 'GET',
+      url: `/attachments/${fakeId}?workspaceId=${workspaceId}`,
+      ...withCookie(cookie),
+    });
+    expect(member.statusCode).toBe(404);
   });
 });
