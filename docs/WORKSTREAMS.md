@@ -17,7 +17,7 @@
 | 11 | Responsive design, accessibility, theming, search UI, quick switcher | child-webui (`devin/pkm-v1-search-theme`) | done | 3, 4 |
 | 12 | Performance, resilience, rate limiting, observability, backups | unassigned | planned | all |
 | 13 | Supply-chain security, privacy, threat model, abuse cases | unassigned | planned | 9, 10 |
-| 14 | Clean-checkout onboarding, development tooling, CI, release readiness | coordinator | in_progress | all |
+| 14 | Clean-checkout onboarding, development tooling, CI, release readiness | child-ci (`devin-4f4bae3b11914440bf1b9d36f7b0baa2`) | in_progress | all |
 
 ## Shared Contracts
 
