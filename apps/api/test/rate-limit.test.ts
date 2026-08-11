@@ -20,6 +20,8 @@ beforeAll(async () => {
   process.env.RATE_LIMIT_SEARCH_ACCOUNT_MAX = '2';
   process.env.RATE_LIMIT_ASK_IP_MAX = '2';
   process.env.RATE_LIMIT_ASK_ACCOUNT_MAX = '2';
+  process.env.RATE_LIMIT_ATTACHMENTS_IP_MAX = '2';
+  process.env.RATE_LIMIT_ATTACHMENTS_ACCOUNT_MAX = '2';
 
   await migrate(pool);
   await pool.query(
@@ -53,6 +55,37 @@ afterAll(async () => {
 
 function withCookie() {
   return { headers: { cookie: `pkm_session=${cookie}` } };
+}
+
+function buildMultipartBody(
+  filename: string,
+  contentType: string,
+  content: string | Buffer,
+  boundary = '----test'
+): Buffer {
+  const data = typeof content === 'string' ? Buffer.from(content) : content;
+  const prefix = Buffer.from(
+    `--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="${filename}"\r\nContent-Type: ${contentType}\r\n\r\n`
+  );
+  const suffix = Buffer.from(`\r\n--${boundary}--\r\n`);
+  return Buffer.concat([prefix, data, suffix]);
+}
+
+async function uploadFile(
+  app: App,
+  cookie: string,
+  workspaceId: string,
+  filename: string,
+  contentType: string,
+  content: string | Buffer
+) {
+  const body = buildMultipartBody(filename, contentType, content);
+  return app.inject({
+    headers: { cookie: `pkm_session=${cookie}`, 'Content-Type': 'multipart/form-data; boundary=----test' },
+    method: 'POST',
+    url: `/workspaces/${workspaceId}/attachments`,
+    payload: body,
+  });
 }
 
 describe('rate limiting', () => {
@@ -161,5 +194,26 @@ describe('rate limiting', () => {
       payload: { question: 'third' },
     });
     expect(third.statusCode).toBe(429);
+  });
+
+  it('throttles attachment uploads after the burst limit', async () => {
+    const ws = await app.inject({
+      ...withCookie(),
+      method: 'POST',
+      url: '/workspaces',
+      payload: { name: 'RateLimitAttachments' },
+    });
+    expect(ws.statusCode).toBe(201);
+    const workspaceId = JSON.parse(ws.payload).id;
+
+    const first = await uploadFile(app, cookie, workspaceId, 'a.txt', 'text/plain', 'first');
+    expect(first.statusCode).toBe(201);
+
+    const second = await uploadFile(app, cookie, workspaceId, 'b.txt', 'text/plain', 'second');
+    expect(second.statusCode).toBe(201);
+
+    const third = await uploadFile(app, cookie, workspaceId, 'c.txt', 'text/plain', 'third');
+    expect(third.statusCode).toBe(429);
+    expect(third.payload).toContain('Too many requests');
   });
 });

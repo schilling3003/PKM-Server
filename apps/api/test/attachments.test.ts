@@ -47,6 +47,8 @@ beforeAll(async () => {
   process.env.RATE_LIMIT_SEARCH_ACCOUNT_MAX = '100';
   process.env.RATE_LIMIT_ASK_IP_MAX = '100';
   process.env.RATE_LIMIT_ASK_ACCOUNT_MAX = '100';
+  process.env.RATE_LIMIT_ATTACHMENTS_IP_MAX = '100';
+  process.env.RATE_LIMIT_ATTACHMENTS_ACCOUNT_MAX = '100';
 
   await migrate(pool);
   await pool.query(

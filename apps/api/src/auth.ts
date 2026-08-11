@@ -133,6 +133,18 @@ export async function registerAuthRoutes(
     30,
     60_000
   );
+  const attachmentIpLimit = parseRateLimitConfig(
+    process.env.RATE_LIMIT_ATTACHMENTS_IP_MAX,
+    process.env.RATE_LIMIT_ATTACHMENTS_IP_WINDOW_MS,
+    60,
+    60_000
+  );
+  const attachmentAccountLimit = parseRateLimitConfig(
+    process.env.RATE_LIMIT_ATTACHMENTS_ACCOUNT_MAX,
+    process.env.RATE_LIMIT_ATTACHMENTS_ACCOUNT_WINDOW_MS,
+    30,
+    60_000
+  );
 
   app.post('/auth/register', async (request: FastifyRequest, reply: FastifyReply) => {
     const body = authSchema.parse(request.body);
@@ -278,6 +290,23 @@ export async function registerAuthRoutes(
         accountConfig
       );
       if (!accountResult.allowed) return deny(accountConfig, accountResult.retryAfter);
+      return;
+    }
+
+    // Rate limiting for attachment uploads (POST /workspaces/:id/attachments)
+    // and attachment downloads/deletes (GET|DELETE /attachments/:id?workspaceId=...).
+    const isAttachmentUpload = parts[0] === 'workspaces' && parts[2] === 'attachments';
+    const isAttachmentAccess = parts[0] === 'attachments' && parts[1];
+    if ((isAttachmentUpload || isAttachmentAccess) && request.user) {
+      const ip = request.ip || request.socket?.remoteAddress || 'unknown';
+      const ipResult = await limiter.isAllowed(`attachments:ip:${ip}`, attachmentIpLimit);
+      if (!ipResult.allowed) return deny(attachmentIpLimit, ipResult.retryAfter);
+
+      const accountResult = await limiter.isAllowed(
+        `attachments:acct:${request.user.id}`,
+        attachmentAccountLimit
+      );
+      if (!accountResult.allowed) return deny(attachmentAccountLimit, accountResult.retryAfter);
     }
   });
 }

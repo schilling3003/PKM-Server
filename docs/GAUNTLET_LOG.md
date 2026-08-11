@@ -200,3 +200,38 @@ clean shutdown.
 **Changes**: `packages/markdown/src/links.ts`, `packages/markdown/src/index.ts`, `packages/markdown/test/parser.test.ts`, `apps/web/app/workspaces/[id]/page.tsx`, `packages/markdown/package.json`, `packages/okf/package.json`, `packages/shared/package.json`, `apps/ai/src/main.py`, `apps/ai/requirements.txt`, `.env.example`, `apps/api/src/search.ts`, `docs/GAUNTLET_LOG.md`.
 **Regressions**: None.
 **Blockers**: None.
+
+## Round 1.2 — End-to-end tester verification
+
+**Date**: 2026-08-11
+**Tester**: Devin child session `67ff0c4a5fbb4012a42881e6d892e033`
+**Branch under test**: `devin/pkm-v1-search-ai`
+**Verdict**: PASS
+- All 12 browser golden-path steps completed: register, workspace/note CRUD, wikilink autocomplete, backlinks/unlinked mentions, tags, outline, graph, search (semantic `cat`/`animals`), index status panel, duplicate/archive/restore, OKF import/export, attachments, logout/re-login.
+- All `curl`/API verification flows passed; health checks for API and AI services returned `ok`.
+- Report branch: `devin/pkm-v1-tester-round-0-9` with `docs/TEST_REPORT.md`, screenshots, and screen recording.
+**Evidence**: Test report shows `3 note(s), 3 indexed, 3 current, 6 chunks, 6 embedded`; semantic search returned `cats.md`, `dogs.md`, `animals.md` for `cat`/`animals`; OKF export round-tripped wikilinks correctly; attachment bytes matched.
+**Blockers / Issues Encountered**:
+- `sentence-transformers` was not in the pre-existing AI `.venv`; installing it and restarting the AI service resolved the issue. The blueprint already installs `apps/ai/requirements.txt`, which now includes `sentence-transformers`.
+- Next.js dev overlay intercepted automated clicks; removed via browser console for automation only.
+- Chrome `Ctrl+K` omnibox conflict was worked around during automation.
+**Recommended follow-up**: Update `.devin/skills/testing-pkm/SKILL.md` to document the dev-overlay and `Ctrl+K` automation caveats.
+**Critic report**: Pending; round 0.9 critic `426b17f41b0d49399ff669d2708a1896` is resuming.
+**Regressions**: None.
+**Blockers**: None.
+
+## Round 1.3 — Critic remediation (attachment rate limiting and CSP 404)
+
+**Date**: 2026-08-11
+**Coordinator**: Devin
+**Verdict**: Integrated the round 0.9 critic's highest findings and re-verified.
+- Wired the existing Redis-backed `RateLimiter` to `POST /workspaces/:id/attachments` and `GET|DELETE /attachments/:id` with per-IP and per-account buckets (configurable via `RATE_LIMIT_ATTACHMENTS_*`).
+- Added an integration test in `apps/api/test/rate-limit.test.ts` that verifies rapid attachment uploads return `429 Too Many requests`.
+- Reconciled `docs/SECURITY.md` so **Mitigations**, **Implemented mitigations**, and **Open hardening** are consistent and no longer list implemented controls as open.
+- Added `apps/web/app/not-found.tsx` so the 404 page uses the application layout instead of Next.js's default inline-styled 404.
+- Added optional `RATE_LIMIT_*` variables to `.env.example`.
+**Evidence**: `pnpm -r build/typecheck/lint/test` pass; `pnpm audit --prod` clean; rate-limit test confirms the third attachment upload in a burst returns `429`.
+**Critic report**: Pending a fresh critic if any blockers remain.
+**Changes**: `apps/api/src/auth.ts`, `apps/api/test/rate-limit.test.ts`, `apps/api/test/attachments.test.ts`, `docs/SECURITY.md`, `.env.example`, `apps/web/app/not-found.tsx`, `docs/GAUNTLET_LOG.md`.
+**Regressions**: None.
+**Blockers**: None.

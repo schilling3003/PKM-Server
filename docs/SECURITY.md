@@ -36,8 +36,8 @@
   rejected. Downloads are proxied through the API and served with
   `Content-Disposition: attachment` and `X-Content-Type-Options: nosniff`.
 - Rate limiting at API gateway (`/auth/login`, `/auth/register`, `/workspaces/:id/search`,
-  `/workspaces/:id/ask`) backed by Redis with an in-memory fallback, applied per IP
-  and per account.
+  `/workspaces/:id/ask`, and `/workspaces/:id/attachments` plus `/attachments/:id`)
+  backed by Redis with an in-memory fallback, applied per IP and per account.
 - Search `q` and ask `question` capped at 500 characters.
 - AI service `/embed` and `/ask` require a shared `X-API-Key` in both directions.
 - Session cookies are signed, HTTP-only, `SameSite=Lax`, and cleared on logout; the
@@ -58,19 +58,16 @@
 - `/workspaces` list/create require authentication and only return workspaces the current user belongs to.
 - `requireWorkspaceMembership` fails closed (`401`) when `request.user` is missing.
 - Markdown link rendering uses a scheme allow-list (`http`, `https`, `mailto`, `tel`) to prevent malicious URLs.
-- YAML frontmatter parsing has defensive limits: 1 MiB document size cap, 64 KiB frontmatter cap, `maxAliasCount: 100`, and `uniqueKeys`.
+- YAML frontmatter parsing has defensive limits: 1 MiB document size cap, 64 KiB frontmatter cap, `maxAliasCount: 50`, and `uniqueKeys`.
 - OKF bundle import validates filenames, rejects reserved `index.md`/`log.md` placements, and preserves unknown YAML keys.
 
 ## Open hardening (in progress)
 
-- Server-side session invalidation on logout (Redis blocklist or opaque sessions).
-- Magic-byte and content-type allow-list for attachment uploads; `Content-Disposition: attachment` for downloads.
-- Rate limiting on auth, search, `/ask`, and attachments.
-- Content-Security-Policy and security headers for the web app.
-- AI service API-key authentication and prompt-injection controls.
-- `/health` should not expose internal service names and latency without auth.
 - CORS `credentials` and constrained origin.
 - Dependency audit remediation (`tar` via `bcrypt`/`node-pre-gyp`).
+- Sub-resource integrity for third-party assets, if any are loaded.
+- CSRF double-submit cookie or SameSite policy review for cross-origin POSTs.
+- Automated end-to-end, accessibility (axe), and load/performance test coverage.
 
 ## Security-Test Plan
 

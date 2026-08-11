@@ -34,8 +34,9 @@ cd apps/ai
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-nohup .venv/bin/uvicorn src.main:app --host 0.0.0.0 --port 8000 > ai.log 2>&1 &
+nohup EMBEDDING_PROVIDER=sentence-transformers .venv/bin/uvicorn src.main:app --host 0.0.0.0 --port 8000 > ai.log 2>&1 &
 ```
+`sentence-transformers` is listed in `apps/ai/requirements.txt` and will be installed into the venv; it downloads the model on the first `/embed` call.
 
 ## Start the API and web dev servers
 From the repo root:
@@ -61,3 +62,5 @@ pkill -f 'uvicorn src.main:app|tsx watch|next dev' || true
 - `docker compose up -d --wait` can take a minute while Temporal auto-setup completes.
 - `LayoutProps<"/">` in `apps/web/app/layout.tsx` currently uses a Next 16 typing style that may or may not type-check depending on the exact `@types/next` resolution; the build succeeded in the verified environment.
 - The default `docker-compose.yml` and `.env.example` contain local-only cleartext credentials (`pkm`, `minioadmin`) which should be rotated/secret-injected before any non-local deployment.
+- The first `/embed` request with `EMBEDDING_PROVIDER=sentence-transformers` downloads `all-MiniLM-L6-v2` from HuggingFace and may take 10–60 s depending on bandwidth.
+- When automating the Next.js dev UI, the dev overlay can intercept clicks; remove it or click through it for automated tests. Chrome's `Ctrl+K` shortcut may focus the omnibox before the in-app search palette; defocus the address bar first.
