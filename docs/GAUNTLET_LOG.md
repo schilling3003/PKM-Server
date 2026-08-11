@@ -137,3 +137,21 @@ clean shutdown.
 **Changes**: `apps/api/package.json`, `apps/api/src/auth.ts`, `apps/api/src/middleware/auth.ts`, `apps/api/src/app.ts`, `apps/api/src/rate-limit.ts`, `apps/api/test/auth.test.ts`, `apps/web/proxy.ts`, `apps/web/middleware.ts` (renamed), `apps/web/app/layout.tsx`, `apps/web/next.config.ts`, `pnpm-lock.yaml`, `docs/GAUNTLET_LOG.md`.
 **Regressions**: None.
 **Blockers**: None.
+
+## Round 0.9 — Remaining critic high/medium findings
+
+**Date**: 2026-08-11
+**Coordinator**: Devin
+**Verdict**: Addressed H-3, H-4, M-2, M-3, and H-1/H-2 (configurable LLM path); gates pass.
+- **H-4 (root `.env` loading)**: `apps/api/src/env.ts` loads the repository root `.env` before other imports; `apps/ai/src/main.py` loads root `.env` relative to `__file__`; `apps/api/test/setup.ts` loads root `.env` before tests. This makes `pnpm --filter <pkg>` commands find the same config.
+- **H-3 (integration test DB isolation)**: `apps/api/test/setup.ts` creates `pkm_test` if it does not exist and sets `process.env.DATABASE_URL` to it before any test module imports `db.ts`. Tests now truncate `pkm_test` instead of the developer's `pkm` database.
+- **M-2 (attachment text validation)**: `isSafeText` in `apps/api/src/attachments.ts` now scans the entire file content rather than only the first 4 KB.
+- **M-3 (`standardToWiki` regex fragility)**: Replaced the regex-based converter with an AST-based implementation using `unified` + `remark-parse`. `wikiToStandard` now percent-encodes spaces in URLs; `standardToWiki` decodes them to produce valid round-trip wikilinks.
+- **H-1/H-2 (`/ask` stub and prompt injection)**: `apps/ai/src/main.py` `/ask` now calls an OpenAI-compatible chat-completions endpoint when `LLM_BASE_URL` and `LLM_API_KEY` are explicitly configured. The prompt includes a system message that refuses to follow instructions embedded in notes, reveal secrets, or ignore grounding. When no LLM is configured, it safely returns a grounded note-list message.
+- Updated `.env.example` with `LLM_*` and `TEST_DATABASE_URL` documentation.
+**Evidence**: `pnpm -r build/typecheck/lint/test` pass; `pnpm audit --prod` clean; API tests run against `pkm_test` and do not touch `pkm`; `packages/markdown` round-trip tests pass with `Project Ideas` target containing a space.
+**Critic report**: Round 0.8 critic session in progress.
+**Decisive gap**: The configurable LLM path has not been exercised against a live model; only the stub and mock are verified. This is acceptable for v1 when the operator has not configured a model.
+**Changes**: `apps/api/src/env.ts`, `apps/api/src/index.ts`, `apps/api/src/ask.ts`, `apps/api/src/ai.ts`, `apps/api/test/setup.ts`, `apps/ai/src/main.py`, `apps/api/src/attachments.ts`, `packages/markdown/src/links.ts`, `packages/markdown/test/parser.test.ts`, `.env.example`, `docs/GAUNTLET_LOG.md`.
+**Regressions**: None.
+**Blockers**: None.
