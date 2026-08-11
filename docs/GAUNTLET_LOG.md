@@ -101,3 +101,18 @@ clean shutdown.
 **Changes**: None yet; fixes queued in workstream 13 security hardening and will be re-reviewed.
 **Regressions**: None.
 **Blockers**: Security hardening child in flight.
+
+## Round 0.7 — Address round 0.5 release blockers RB-2 and RB-4
+
+**Date**: 2026-08-11
+**Coordinator**: Devin
+**Verdict**: Partial fix; two release blockers resolved.
+- RB-2 (login/register 404): `apps/web/app/login/page.tsx` now redirects to `/` instead of `/workspaces`; `apps/web/lib/auth.ts` extracts a plain `error` string from JSON API responses.
+- RB-4 (YAML limits): `packages/markdown/src/parser.ts` now enforces a 1 MiB document size cap, a 64 KiB frontmatter cap, and a `maxAliasCount` of 100 with `uniqueKeys`; YAML parse errors and size violations are re-thrown as `DocumentValidationError`.
+- `apps/api/src/app.ts` error handler maps `DocumentValidationError` to `400`.
+- Added `packages/markdown/test/parser.test.ts` coverage for size, frontmatter size, and alias-bomb rejection.
+**Evidence**: `pnpm -r build/typecheck/lint/test` pass; `curl` to the running API returns `400` for an alias-bomb note and `/workspaces` unauthenticated still returns `401`.
+**Decisive gap**: RB-1 (server-side logout invalidation) and RB-3 (attachment content-type/magic-byte validation) are in progress in the workstream 13 security hardening child.
+**Changes**: `apps/web/app/login/page.tsx`, `apps/web/lib/auth.ts`, `packages/markdown/src/parser.ts`, `packages/markdown/src/index.ts`, `packages/markdown/test/parser.test.ts`, `apps/api/src/app.ts`.
+**Regressions**: None.
+**Blockers**: None.
