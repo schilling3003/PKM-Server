@@ -380,3 +380,31 @@ clean shutdown.
 **Decisive gap**: None.
 **Regressions**: None.
 **Blockers**: Awaiting the fresh final critic (`devin-6eca8b3f30094479b4b23830324d6ced`) for a binary PASS/FAIL verdict.
+
+## Round 1.12 — Ask UI and AI-proposed diff/approval flow
+
+**Date**: 2026-08-11
+**Coordinator**: Devin
+**Branch**: `devin/pkm-v1-ask-diff`
+**Verdict**: PASS (local gates passed; fresh critic not yet run)
+- Implemented the workspace-scoped Ask page at `/workspaces/[id]/ask` with a grounded-question input, `POST /workspaces/:id/ask` call, ReactMarkdown answer rendering, numbered citations that link back to the workspace editor, and warning display.
+- Added `Ctrl/Cmd+Shift+A` keyboard shortcut and an `Ask` button on the workspace page; added `Ctrl/Cmd+Shift+D` and a `Propose` button for the diff page.
+- Implemented the backend `POST /workspaces/:id/propose` route (`apps/api/src/propose.ts`) that resolves the target note by `documentId` or `path`, gathers workspace-scoped context, calls `generateAnswer` with a structured JSON prompt, and returns `{ originalPath, proposedPath, originalContent, proposedContent, explanation, citations }`.
+- Added frontend diff/preview panel at `/workspaces/[id]/diff` with original/proposed side-by-side text, explanation, citations, `Apply` (calls `PUT /workspaces/:id/documents/:id`), and `Reject` (navigates back). Canonical Markdown is not mutated without explicit approval.
+- Added `proposeEdit` and `ProposedEdit`/`Citation` types to `apps/web/lib/api.ts`.
+- Added `apps/api/test/propose.test.ts` covering valid proposal, path resolution, workspace-isolation, prompt-injection guardrail text in the LLM prompt, invalid JSON, path-traversal rejection, and input validation.
+- Wired `/propose` into the existing `/ask` rate-limit bucket in `apps/api/src/auth.ts`.
+- Documented the design in `docs/DECISIONS.md` AD-021 and updated `docs/WORKSTREAMS.md` workstream 7 to reflect the completed Ask and AI-proposed diff/approval scope.
+
+**Evidence**:
+- `pnpm -r typecheck` pass
+- `pnpm -r lint` pass
+- `pnpm -r test` pass (49 API + 18 markdown + 7 OKF tests; 6 resilience tests run and passed with `RUN_RESILIENCE_TESTS=1`)
+- `pnpm -r build` pass; Next.js now emits `/workspaces/[id]/ask` and `/workspaces/[id]/diff` routes
+- `pnpm audit --prod` clean
+- Docker Compose stack healthy; `curl` smoke test authenticated to create a workspace/note and received `200` from `POST /workspaces/:id/ask` and a `422` from `POST /workspaces/:id/propose` (the latter because no LLM is configured locally, proving the route is wired and parsed)
+
+**Decisive gap**: None.
+**Changes**: `apps/api/src/propose.ts`, `apps/api/src/app.ts`, `apps/api/src/auth.ts`, `apps/api/test/propose.test.ts`, `apps/web/lib/api.ts`, `apps/web/app/workspaces/[id]/ask/page.tsx`, `apps/web/app/workspaces/[id]/diff/page.tsx`, `apps/web/app/workspaces/[id]/page.tsx`, `docs/DECISIONS.md`, `docs/WORKSTREAMS.md`, `docs/GAUNTLET_LOG.md`.
+**Regressions**: None.
+**Blockers**: None.

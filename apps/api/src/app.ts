@@ -8,6 +8,7 @@ import * as workspaces from './workspaces.js';
 import * as documents from './documents.js';
 import * as search from './search.js';
 import { askWorkspace } from './ask.js';
+import { proposeEdit } from './propose.js';
 import { importOkf, exportOkf } from './okf.js';
 
 const MAX_QUERY_LENGTH = 500;
@@ -171,6 +172,18 @@ export async function buildApp(options: { logger?: boolean } = {}) {
     const schema = z.object({ question: z.string().min(1).max(MAX_QUERY_LENGTH) });
     const body = schema.parse(req.body);
     const result = await askWorkspace(workspaceId, body.question);
+    return result;
+  });
+
+  app.post('/workspaces/:workspaceId/propose', async (req, reply) => {
+    const { workspaceId } = req.params as { workspaceId: string };
+    const schema = z.object({
+      instruction: z.string().min(1).max(MAX_QUERY_LENGTH),
+      documentId: z.string().optional(),
+      path: z.string().optional(),
+    }).refine((v) => v.documentId || v.path, { message: 'documentId or path is required' });
+    const body = schema.parse(req.body);
+    const result = await proposeEdit(workspaceId, body);
     return result;
   });
 

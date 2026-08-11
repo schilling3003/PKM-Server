@@ -510,10 +510,20 @@ export default function WorkspacePage() {
         e.preventDefault();
         setPaletteOpen((open) => !open);
       }
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === 'a') {
+        e.preventDefault();
+        router.push(`/workspaces/${workspaceId}/ask`);
+      }
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === 'd') {
+        e.preventDefault();
+        const targetId = selectedId ?? '';
+        const query = targetId ? `?documentId=${encodeURIComponent(targetId)}` : '';
+        router.push(`/workspaces/${workspaceId}/diff${query}`);
+      }
     }
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [isDirty]);
+  }, [isDirty, workspaceId, selectedId, router]);
 
   const filteredDocuments = useMemo(() => {
     const active = documents.filter((d) => !d.archived_at);
@@ -1072,6 +1082,22 @@ export default function WorkspacePage() {
                 title="Graph view"
               >
                 Graph
+              </NextLink>
+
+              <NextLink
+                href={`/workspaces/${workspaceId}/ask`}
+                className="rounded border border-border bg-muted px-2 py-1.5 text-sm text-foreground hover:bg-muted/80"
+                title="Ask workspace (Ctrl+Shift+A / Cmd+Shift+A)"
+              >
+                Ask
+              </NextLink>
+
+              <NextLink
+                href={selectedId ? `/workspaces/${workspaceId}/diff?documentId=${encodeURIComponent(selectedId)}` : `/workspaces/${workspaceId}/diff`}
+                className="rounded border border-border bg-muted px-2 py-1.5 text-sm text-foreground hover:bg-muted/80"
+                title="Propose edit (Ctrl+Shift+D / Cmd+Shift+D)"
+              >
+                Propose
               </NextLink>
 
               {isDirty && <span className="hidden text-xs text-amber-600 sm:inline">Unsaved</span>}

@@ -10,7 +10,7 @@
 | 4 | Navigation, folders, tabs, properties, tags, outline, links, backlinks | child-3872c0 | done (v1 scope: tree, switcher, create/rename/delete, backlinks) | 1, 2 |
 | 5 | Full-text search, filters, quick switcher, unlinked mentions | child-webui (`devin/pkm-v1-search-theme`) | done | 1, 2 |
 | 6 | Semantic search, embeddings, vector retrieval | coordinator | done | 1, 2 |
-| 7 | Grounded AI answers, citations, abstention, diff editing | coordinator | done | 1, 6 |
+| 7 | Grounded AI answers, citations, abstention, diff editing, AI-proposed edits, and approval | coordinator | done | 1, 6 |
 | 8 | Collaboration, presence, reconnects, conflicts, concurrent edits | unassigned | planned | 2, 3 |
 | 9 | Authentication, workspace membership, authorization, isolation | child-auth (`devin/pkm-v1-auth`) | done | — |
 | 10 | Attachments, safe rendering, imports, exports, migration | child-attachments (`devin/pkm-v1-attachments`) | done | 1, 9 |

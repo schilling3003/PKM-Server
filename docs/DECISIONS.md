@@ -270,3 +270,13 @@ different layout for that view.
 **Evidence**: The workstream 19 resilience test requires restarting Postgres, Redis, AI, and MinIO and confirming the API recovers and reports health accurately. The original `/health` only covered Postgres, Redis, and AI, so a MinIO outage was invisible. The live check uses an unauthenticated HTTP request to MinIO's built-in health probe, requires no extra credentials in development, and keeps the existing top-level `ok`/`degraded` response shape (no secret or note content leakage).
 
 **Reversibility**: High. The health function is isolated in `apps/api/src/index.ts`; removing or replacing the MinIO probe is a single-line change.
+
+## AD-021: AI-proposed edit endpoint reuses the existing `generateAnswer` pipeline with a structured JSON prompt
+
+**Decision**: Implement `POST /workspaces/:workspaceId/propose` in `apps/api/src/propose.ts` and wire it into `apps/api/src/app.ts`. The service resolves the target note by `documentId` or `path` within the workspace, gathers workspace-scoped context from the target note and `hybridSearch`, and calls `generateAnswer` (which forwards to the Python AI service) with a prompt that asks for a JSON object containing `path`, `content`, and `explanation`.
+
+**Alternatives**: Add a new AI service endpoint (`/propose`) with a dedicated system prompt; implement a separate model-calling path in `apps/api`; call the LLM directly from the web frontend.
+
+**Evidence**: Reusing `generateAnswer` keeps provider selection, API-key handling, timeout, and URL configuration in one place (`apps/api/src/ai.ts`). The structured JSON prompt is a question string, and the Python `/ask` endpoint's system prompt already instructs the model to refuse embedded commands and not reveal secrets. Returning `{ originalPath, proposedPath, originalContent, proposedContent, explanation, citations }` lets the frontend render a side-by-side diff without mutating canonical Markdown until the user explicitly applies the change. The response is parsed and validated (`parseCanonical`, path-traversal guard) before it is returned, so malformed or unsafe proposals are surfaced as `400`/`422` before they ever reach the editor. Rate limiting for `/propose` is grouped with `/ask` in `apps/api/src/auth.ts`.
+
+**Reversibility**: Medium. The endpoint could be split into a dedicated AI service route later; the API contract (`original*`, `proposed*`, `explanation`, `citations`) would remain unchanged.
