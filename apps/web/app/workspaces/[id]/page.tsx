@@ -459,6 +459,15 @@ export default function WorkspacePage() {
           .sort((a, b) => a.path.localeCompare(b.path))
       );
       setIsDirty(false);
+
+      const [revs, newStatus, wsStatus] = await Promise.all([
+        listRevisions(workspaceId, updated.id),
+        getDocumentIndexStatus(workspaceId, updated.id).catch(() => null),
+        getWorkspaceIndexStatus(workspaceId).catch(() => null),
+      ]);
+      setRevisions(revs);
+      if (newStatus) setDocIndexStatus(newStatus);
+      if (wsStatus) setIndexStatus(wsStatus);
     } catch (e) {
       setError(String(e));
     } finally {
