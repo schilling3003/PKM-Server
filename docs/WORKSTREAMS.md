@@ -22,9 +22,9 @@
 | 16 | Autosave, wikilink autocomplete, unlinked mentions, duplicate/archive/restore | coordinator (`devin/pkm-v1-autosave-ux`) | done (merged) | 3, 4, 15 |
 | 17 | AI index status, observability, and staleness indicators | coordinator (`devin/pkm-v1-ai-observability`) | done (merged) | 7, 15 |
 | 18 | Revision history API and UI (list/restore previous versions) | child-revisions (`devin/pkm-v1-revisions`) | done (merged) | 2, 3 |
-| 19 | Performance, resilience, and recovery tests (100k note, 10k workspace, restart, failed indexing) | child-perf | queued | all |
-| 20 | Accessibility audit and keyboard navigation polish | child-a11y | queued | 3, 4, 11 |
-| 21 | Final Gauntlet integration, clean checkout reproducibility, and PR readiness | coordinator | pending | all |
+| 19 | Performance, resilience, and recovery tests (100k note, 10k workspace, restart, failed indexing) | child-perf (`devin/pkm-v1-perf`) | in_progress | all |
+| 20 | Accessibility audit and keyboard navigation polish | child-a11y (`devin/pkm-v1-a11y`) | in_progress | 3, 4, 11 |
+| 21 | Final Gauntlet integration, clean checkout reproducibility, and PR readiness | coordinator | in_progress | all |
 
 ## Shared Contracts
 

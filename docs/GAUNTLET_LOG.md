@@ -281,3 +281,17 @@ clean shutdown.
 **Changes**: `packages/markdown/src/links.ts`, `packages/markdown/test/parser.test.ts`, `apps/web/app/workspaces/[id]/page.tsx`, `docs/WORKSTREAMS.md`, `docs/GAUNTLET_LOG.md`.
 **Regressions**: None.
 **Blockers**: None.
+
+## Round 1.7 — Fix `handleRestore` stale archived entry and merge test report
+
+**Date**: 2026-08-11
+**Coordinator**: Devin
+**Verdict**: Fixed the duplicate-archived-entry state bug found by the round 1.6 end-to-end tester and merged the test report into `devin/pkm-v1-search-ai`.
+- **`handleRestore` replaced the archived document instead of appending**: `apps/web/app/workspaces/[id]/page.tsx` now maps the restored `Document` over the matching `id`, re-sorts by path, and refreshes the active editor if the restored note was selected.
+- **Merged `devin/pkm-v1-tester-round-1-1`**: incorporated `docs/TEST_REPORT.md` and the restore fix into `devin/pkm-v1-search-ai`.
+- **Re-verified**: `pnpm -r build/typecheck/lint/test` pass; `pnpm audit --prod` clean; Docker Compose stack healthy; API and AI `/health` return `ok`.
+**Evidence**: `apps/web/app/workspaces/[id]/page.tsx` now updates `documents` with `prev.map(doc => doc.id === id ? d : doc)` after `restoreDocument` resolves; `pnpm -r build/typecheck/lint/test` and `pnpm audit --prod` pass.
+**Decisive gap**: Re-run the persistent end-to-end tester on the merged `devin/pkm-v1-search-ai` commit to confirm `Show archived` no longer shows a duplicate after restore and the archive/restore golden path is fully automated.
+**Changes**: `apps/web/app/workspaces/[id]/page.tsx`, `docs/TEST_REPORT.md`, `docs/GAUNTLET_LOG.md`.
+**Regressions**: None.
+**Blockers**: None.
