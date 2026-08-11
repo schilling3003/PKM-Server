@@ -40,9 +40,11 @@ nohup .venv/bin/uvicorn src.main:app --host 0.0.0.0 --port 8000 > ai.log 2>&1 &
 ## Start the API and web dev servers
 From the repo root:
 ```bash
-nohup pnpm --filter @pkm/api dev > api.log 2>&1 &
-nohup pnpm --filter @pkm/web dev > web.log 2>&1 &
+nohup pnpm --filter @pkm/api start > api.log 2>&1 &
+nohup pnpm --filter @pkm/web start > web.log 2>&1 &
 ```
+
+For production-like end-to-end verification, use `start` instead of `dev`.
 
 ## Verify
 ```bash
