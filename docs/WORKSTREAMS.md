@@ -21,6 +21,10 @@
 | 15 | Graph view, note outline, tags/properties panel | child-graph (`devin/pkm-v1-graph-panel`) | done (merged) | 3, 4 |
 | 16 | Autosave, wikilink autocomplete, unlinked mentions, duplicate/archive/restore | coordinator (`devin/pkm-v1-autosave-ux`) | done (merged) | 3, 4, 15 |
 | 17 | AI index status, observability, and staleness indicators | coordinator (`devin/pkm-v1-ai-observability`) | done (merged) | 7, 15 |
+| 18 | Revision history API and UI (list/restore previous versions) | child-revisions (`devin/pkm-v1-revisions`) | in progress (session ab169d5c2f47449984fd977faa144dd1) | 2 |
+| 19 | Performance, resilience, and recovery tests (100k note, 10k workspace, restart, failed indexing) | child-perf | queued | all |
+| 20 | Accessibility audit and keyboard navigation polish | child-a11y | queued | 3, 4, 11 |
+| 21 | Final Gauntlet integration, clean checkout reproducibility, and PR readiness | coordinator | pending | all |
 
 ## Shared Contracts
 
