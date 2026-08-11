@@ -359,3 +359,24 @@ clean shutdown.
 **Changes**: `apps/api/src/documents.ts`, `apps/api/src/index.ts`, `apps/web/lib/api.ts`, `apps/web/app/workspaces/[id]/page.tsx`, `apps/api/scripts/perf/`, `apps/web/scripts/benchmark-page-load.mjs`, `apps/api/test/resilience.test.ts`, `apps/api/package.json`, `apps/web/package.json`, `docs/DECISIONS.md`, `docs/GAUNTLET_LOG.md`.
 **Regressions**: None.
 **Blockers**: None.
+
+## Round 1.11 — Final integration gate: merge tester report, skill updates, and run full quality suite
+
+**Date**: 2026-08-11
+**Coordinator**: Devin
+**Verdict**: All merged code and documentation pass the quality gates; the branch is pushed and the PR is updated. A fresh final critic is running.
+- Merged `devin/pkm-v1-tester-final` into `devin/pkm-v1-search-ai`, bringing in `docs/TEST_REPORT_final.md` and updates to `.devin/skills/testing-pkm-search-ai/SKILL.md`.
+- Added `apps/web/page-load-results.json` to `.gitignore` so generated benchmark artifacts are not committed.
+- Ran the full quality suite on the integration branch with the Docker Compose stack running:
+  - `pnpm -r typecheck` pass
+  - `pnpm -r lint` pass
+  - `pnpm -r test` pass (42 API + 18 markdown + 7 OKF tests; resilience suite skipped without env flag)
+  - `pnpm -r build` pass
+  - `pnpm audit --prod` clean
+  - `RUN_RESILIENCE_TESTS=1 pnpm --filter @pkm/api test test/resilience.test.ts` passes 6/6
+- Pushed `devin/pkm-v1-search-ai` and updated PR #3 with a summary of the complete v1 scope, quality gate results, and pointer to the pending final critic.
+
+**Evidence**: `TEST_REPORT_final.md` documents the end-to-end browser and `curl` verification run by the persistent testing agent; the above commands all completed successfully in this session.
+**Decisive gap**: None.
+**Regressions**: None.
+**Blockers**: Awaiting the fresh final critic (`devin-6eca8b3f30094479b4b23830324d6ced`) for a binary PASS/FAIL verdict.
