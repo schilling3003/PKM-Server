@@ -438,6 +438,7 @@ export interface IndexStatus {
   indexed_document_count: number;
   current_document_count: number;
   stale_document_count: number;
+  failed_document_count: number;
   chunk_count: number;
   embedded_chunk_count: number;
 }
@@ -449,6 +450,7 @@ export async function getWorkspaceIndexStatus(workspaceId: string): Promise<Inde
        COUNT(DISTINCT CASE WHEN dc.id IS NOT NULL THEN d.id END)::int AS indexed_document_count,
        COUNT(DISTINCT CASE WHEN dc.id IS NOT NULL AND dc.content_hash = d.content_hash THEN d.id END)::int AS current_document_count,
        COUNT(DISTINCT CASE WHEN dc.id IS NOT NULL AND dc.content_hash <> d.content_hash THEN d.id END)::int AS stale_document_count,
+       COUNT(DISTINCT CASE WHEN dc.id IS NOT NULL AND dc.embedding IS NULL THEN d.id END)::int AS failed_document_count,
        COUNT(dc.id)::int AS chunk_count,
        COUNT(CASE WHEN dc.embedding IS NOT NULL THEN 1 END)::int AS embedded_chunk_count
      FROM documents d
@@ -477,7 +479,8 @@ export async function getDocumentIndexStatus(workspaceId: string, documentId: st
   const chunk_count = chunks.length;
   const embedded_chunk_count = chunks.filter((c) => c.has_embedding).length;
   const stale = chunk_count > 0 && chunks.some((c) => c.content_hash !== doc.content_hash);
-  return { document_id: doc.id, chunk_count, embedded_chunk_count, stale };
+  const failed = chunk_count > 0 && embedded_chunk_count === 0;
+  return { document_id: doc.id, chunk_count, embedded_chunk_count, stale, failed };
 }
 
 export async function restoreDocument(workspaceId: string, documentId: string): Promise<DocumentRow> {

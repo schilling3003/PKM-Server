@@ -237,4 +237,24 @@ different layout for that view.
 
 **Evidence**: Next.js 16.3.0 warns that `next start` does not work when `output: 'standalone'` is configured, because standalone output emits `server.js` and does not serve `_next/static` chunks via `next start`. Keeping `next start` usable for local golden-path testing (and for `pnpm --filter @pkm/web start`) while still producing a standalone image for Docker keeps both paths simple and does not require copying static assets manually.
 
-**Reversibility**: High. The change is a single `output` expression in `next.config.ts` and one `ENV` line in `apps/web/Dockerfile`.
+**Reversibility**: High. The change is a single `output` expression in `apps/web/next.config.ts` and one `ENV` line in `apps/web/Dockerfile`.
+
+## AD-018: Failed AI index status surfaced without a schema migration
+
+**Decision**: Derive a per-document `failed` flag and a workspace `failed_document_count` from the existing `document_chunks` table: a document is failed when it has chunks but none have an `embedding`. The workspace count uses a `COUNT(DISTINCT ...)` expression over chunks with `embedding IS NULL`.
+
+**Alternatives**: Add a dedicated `index_status` column to `documents`; add a separate `index_failures` table; treat missing embeddings as stale rather than failed.
+
+**Evidence**: `safeEmbedChunks` already catches embedding failures and inserts chunks with `embedding = NULL` while still recording the new `content_hash`. Existing `stale` detection only compares hashes, so a failed re-index looks current. Computing `failed` from existing rows exposes the failure without a migration, preserves the projection/canonical boundary, and lets the workspace and per-document status panels show a distinct failed state.
+
+**Reversibility**: High. The flag is computed at query time; adding a persisted status column later is additive and can be backfilled from the same rule.
+
+## AD-019: MinIO included in the API health endpoint
+
+**Decision**: Extend `GET /health` in `apps/api/src/index.ts` to check the MinIO `/minio/health/live` endpoint and mark the overall status `degraded` when MinIO is unreachable.
+
+**Alternatives**: Add a separate `/health/minio` endpoint; rely on attachment route errors to surface MinIO outages; do not monitor MinIO from the API.
+
+**Evidence**: The workstream 19 resilience test requires restarting Postgres, Redis, AI, and MinIO and confirming the API recovers and reports health accurately. The original `/health` only covered Postgres, Redis, and AI, so a MinIO outage was invisible. The live check uses an unauthenticated HTTP request to MinIO's built-in health probe, requires no extra credentials in development, and keeps the existing top-level `ok`/`degraded` response shape (no secret or note content leakage).
+
+**Reversibility**: High. The health function is isolated in `apps/api/src/index.ts`; removing or replacing the MinIO probe is a single-line change.

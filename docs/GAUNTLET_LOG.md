@@ -295,3 +295,33 @@ clean shutdown.
 **Changes**: `apps/web/app/workspaces/[id]/page.tsx`, `docs/TEST_REPORT.md`, `docs/GAUNTLET_LOG.md`.
 **Regressions**: None.
 **Blockers**: None.
+
+## Round 19 — Performance, resilience, and recovery tests
+
+**Date**: 2026-08-11
+**Coordinator**: Devin
+**Verdict**: Delivered deterministic performance/resilience scripts, verified budgets are measurable, and added resilience tests with cross-workstream index-status and MinIO health integrations.
+- **Failed AI index status (cross-workstream integration)**: Added `failed`/`failed_document_count` to `IndexStatus` and `getDocumentIndexStatus` by deriving the state from `document_chunks` rows with `embedding IS NULL`. This lets the UI/API expose a failed re-index instead of silently showing it as current.
+- **MinIO health check (cross-workstream integration)**: Extended `GET /health` in `apps/api/src/index.ts` to probe the MinIO `/minio/health/live` endpoint, so container restart tests can observe MinIO recovery through the API.
+- **Health-check timeouts**: Added `withTimeout` and per-check Redis client creation to `/health` so Postgres/Redis/AI/MinIO outages are reported within seconds and the API recovers cleanly after each service returns.
+- **Performance scripts**: Added `apps/api/scripts/perf/{lib,load-env,migrate,benchmark-search,benchmark-note}.ts` and `apps/web/scripts/benchmark-page-load.mjs`.
+  - `pnpm --filter @pkm/api perf:search -- --count=10000 --queries=100` inserts 10,000 generated notes and reports full-text search p95 latency.
+  - `pnpm --filter @pkm/api perf:note` creates a 100,000-word note and reports note-open p95 latency for both `getDocument` and `getDocumentByPath`.
+  - `pnpm --filter @pkm/web perf:page-load -- --url=http://localhost:3000/login --runs=2` runs Lighthouse desktop/mobile and reports FCP p95 against the budgets.
+- **Resilience tests**: Added `apps/api/test/resilience.test.ts`, gated by `RUN_RESILIENCE_TESTS=1` because it starts the Docker Compose stack and an API child process.
+  - Failed AI indexing: stubs `fetch` to return vectors, then throw, then recover; asserts per-document `failed`/`stale` status transitions correctly.
+  - Bulk workspace isolation: creates 110 notes in each of two workspaces and asserts that full-text search returns only the correct workspace's notes and no cross-workspace leakage.
+  - Container restart recovery: stops and restarts Postgres, Redis, MinIO, and the AI mock in turn, polling `/health` to confirm the API reports `degraded` then `ok` for each outage.
+- **Decision records**: Added `docs/DECISIONS.md` AD-018 (failed index status without migration) and AD-019 (MinIO in `/health`).
+
+**Evidence**:
+- `pnpm -r build/typecheck/lint/test` pass; `pnpm audit --prod` clean.
+- `RUN_RESILIENCE_TESTS=1 pnpm --filter @pkm/api test test/resilience.test.ts` passes (6/6).
+- Search benchmark: p95 = 7.36 ms on 10,000 generated notes, budget 150 ms (`pass`).
+- Note-open benchmark: p95 = 4.04 ms for a 100,000-word note by id, 3.29 ms by path, budget 200 ms (`pass`).
+- Page-load benchmark (login page, 2 runs each): desktop FCP p95 = 763 ms, budget 2000 ms (`pass`); mobile FCP p95 = 762 ms, budget 1500 ms (`pass`). Output written to `apps/web/page-load-results.json`.
+
+**Decisive gap**: The page-load budget is verified against the `/login` page, not the authenticated workspace list; measuring the full authenticated workspace route requires a logged-in browser session and is left to the end-to-end tester.
+**Changes**: `apps/api/src/documents.ts`, `apps/api/src/index.ts`, `apps/web/lib/api.ts`, `apps/web/app/workspaces/[id]/page.tsx`, `apps/api/scripts/perf/`, `apps/web/scripts/benchmark-page-load.mjs`, `apps/api/test/resilience.test.ts`, `apps/api/package.json`, `apps/web/package.json`, `docs/DECISIONS.md`, `docs/GAUNTLET_LOG.md`.
+**Regressions**: None.
+**Blockers**: None.
