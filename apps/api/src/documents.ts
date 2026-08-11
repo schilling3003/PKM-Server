@@ -329,11 +329,20 @@ async function uniqueDuplicatePath(client: PoolClient, workspaceId: string, path
   const base = path.replace(/\.md$/i, '');
   let candidate = `${base} (copy).md`;
   let counter = 2;
-  while (await getDocumentByPath(workspaceId, candidate)) {
+  while (await getDocumentByPathWithClient(client, workspaceId, candidate)) {
     candidate = `${base} (copy ${counter}).md`;
     counter++;
   }
   return candidate;
+}
+
+async function getDocumentByPathWithClient(client: PoolClient, workspaceId: string, path: string): Promise<DocumentRow | null> {
+  const normalized = normalizePath(path);
+  const { rows } = await client.query<DocumentRow>(
+    'SELECT id, workspace_id, path, title, content, frontmatter, content_hash, archived_at, created_at, updated_at FROM documents WHERE workspace_id = $1 AND path = $2',
+    [workspaceId, normalized]
+  );
+  return rows[0] ?? null;
 }
 
 export async function duplicateDocument(workspaceId: string, documentId: string): Promise<DocumentRow> {
