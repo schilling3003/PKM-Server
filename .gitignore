@@ -10,3 +10,4 @@ coverage
 *.local
 __pycache__
 *.pyc
+apps/web/page-load-results.json
