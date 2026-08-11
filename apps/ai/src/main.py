@@ -3,12 +3,18 @@ from contextlib import asynccontextmanager
 
 import httpx
 from dotenv import load_dotenv
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI, Header, HTTPException
 from pydantic import BaseModel
+from starlette.status import HTTP_401_UNAUTHORIZED
 
 load_dotenv()
 
 AI_SERVICE_URL = os.getenv("AI_SERVICE_URL", "http://localhost:8000")
+AI_SERVICE_API_KEY = os.getenv("AI_SERVICE_API_KEY")
+NODE_ENV = os.getenv("NODE_ENV", "development")
+
+if NODE_ENV == "production" and not AI_SERVICE_API_KEY:
+    raise RuntimeError("AI_SERVICE_API_KEY is required in production")
 
 
 @asynccontextmanager
@@ -19,6 +25,14 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="PKM AI Service", version="0.1.0", lifespan=lifespan)
+
+
+def verify_api_key(x_api_key: str | None = Header(None)):
+    if AI_SERVICE_API_KEY and x_api_key != AI_SERVICE_API_KEY:
+        raise HTTPException(
+            status_code=HTTP_401_UNAUTHORIZED, detail="Invalid or missing API key"
+        )
+    return True
 
 
 class HealthResponse(BaseModel):
@@ -40,7 +54,7 @@ class EmbedResponse(BaseModel):
     dimensions: int
 
 
-@app.post("/embed", response_model=EmbedResponse)
+@app.post("/embed", response_model=EmbedResponse, dependencies=[Depends(verify_api_key)])
 async def embed(req: EmbedRequest):
     # Walking skeleton: deterministic stub embedding.
     dims = 384
@@ -58,7 +72,7 @@ class AskResponse(BaseModel):
     answer: str
 
 
-@app.post("/ask", response_model=AskResponse)
+@app.post("/ask", response_model=AskResponse, dependencies=[Depends(verify_api_key)])
 async def ask(req: AskRequest):
     # v1 stub: a real deployment would route this to a configured model.
     # The prompt already contains the grounded note context and citations.

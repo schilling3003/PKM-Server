@@ -22,7 +22,7 @@ export default function LoginPage() {
       } else {
         await register(email, password);
       }
-      router.push('/workspaces');
+      router.push('/');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Authentication failed');
     } finally {

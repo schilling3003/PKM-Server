@@ -87,3 +87,20 @@ clean shutdown.
 **Changes**: `apps/api/src/app.ts`, `apps/api/src/auth.ts`, `apps/api/src/attachments.ts`, `apps/api/test/auth.test.ts`, `apps/api/test/integration.test.ts`, `apps/api/test/attachments.test.ts`, `.github/workflows/ci.yml`, `docs/WORKSTREAMS.md`, `docs/GAUNTLET_LOG.md`.
 **Regressions**: None.
 **Blockers**: None.
+
+## Round 0.5 — Critic response and security hardening
+
+**Date**: 2026-08-11
+**Coordinator**: Devin
+**Verdict**: Addressed the round 0.5 critic release blockers and remaining `SECURITY_REVIEW.md` high findings; gates pass.
+- **RB-1**: `/auth/logout` now blocks the signed cookie server-side in Redis (with an in-memory fallback) and `resolveUser` rejects blocklisted cookies. Session invalidation is effective immediately and persists for the remaining cookie lifetime (`SESSION_MAX_AGE_SECONDS`).
+- **RB-2**: Login and register in `apps/web/app/login/page.tsx` redirect to `/` (the existing workspace list) instead of the non-existent `/workspaces`.
+- **RB-3**: Attachment uploads are validated by magic-byte allow-list for images, PDF, and text, and downloads are proxied through the API with `Content-Disposition: attachment` and `X-Content-Type-Options: nosniff` so the uploader cannot control the served `Content-Type`.
+- **RB-4**: YAML frontmatter parsing uses `maxAliasCount: 50` and an overall document-size cap of 1 MiB is enforced in `documents.ts`/`okf.ts` to prevent billion-laughs-style expansion and oversized payloads.
+- Also implemented the originally scoped security mitigations: per-IP/per-account Redis-backed rate limiting on `/auth/login`, `/auth/register`, `/workspaces/:id/search`, and `/workspaces/:id/ask`; CSP/security headers in `apps/web/next.config.ts`; 500-character input caps on `q` and `question`; `X-API-Key` auth between `apps/api` and `apps/ai`; production guards that refuse to start if `SESSION_SECRET`, `S3_SECRET_KEY`, `DATABASE_URL`, or `AI_SERVICE_API_KEY` are missing; and reduced `/health` disclosure to only top-level status and version.
+**Evidence**: `pnpm -r build`, `pnpm -r typecheck`, `pnpm -r lint`, and `pnpm -r test` pass; Docker Compose stack starts healthy; `curl` confirms logout invalidates the session, protected routes reject the old cookie, oversized search/ask returns `400`, blocked attachment types are rejected, and document creation rejects a YAML bomb and oversized content.
+**Critic report**: `origin/devin/pkm-v1-critic-round-0-5:CRITIC_REPORT.md`.
+**Decisive gap**: The signed-cookie session model is hardened with a blocklist but is still not a fully opaque server-side session; that remains a future architectural improvement.
+**Changes**: `apps/api/src/session-blocklist.ts`, `apps/api/src/auth.ts`, `apps/api/src/middleware/auth.ts`, `apps/api/src/attachments.ts`, `apps/api/src/app.ts`, `apps/api/src/index.ts`, `apps/api/src/documents.ts`, `packages/markdown/src/parser.ts`, `apps/web/app/login/page.tsx`, `apps/web/next.config.ts`, `apps/ai/src/main.py`, `apps/api/src/ai.ts`, `apps/api/src/db.ts`, `apps/api/src/rate-limit.ts`, `apps/api/test/auth.test.ts`, `apps/api/test/integration.test.ts`, `apps/api/test/attachments.test.ts`, `apps/api/test/rate-limit.test.ts`, `docs/SECURITY.md`, `docs/DECISIONS.md`, `docs/GAUNTLET_LOG.md`.
+**Regressions**: None.
+**Blockers**: None.

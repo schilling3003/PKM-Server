@@ -9,9 +9,11 @@ import * as search from './search.js';
 import { askWorkspace } from './ask.js';
 import { importOkf, exportOkf } from './okf.js';
 
+const MAX_QUERY_LENGTH = 500;
+
 export async function buildApp(options: { logger?: boolean } = {}) {
   const app = Fastify({ logger: options.logger ?? true });
-  await app.register(cors, { origin: process.env.WEB_URL || 'http://localhost:3000' });
+  await app.register(cors, { origin: process.env.WEB_URL || 'http://localhost:3000', credentials: true });
 
   // Workspaces
   app.post('/workspaces', async (req, reply) => {
@@ -98,6 +100,9 @@ export async function buildApp(options: { logger?: boolean } = {}) {
     const { workspaceId } = req.params as { workspaceId: string };
     const { q, limit = '20' } = req.query as { q?: string; limit?: string };
     if (!q) return reply.status(400).send({ error: 'Query parameter q is required' });
+    if (q.length > MAX_QUERY_LENGTH) {
+      return reply.status(400).send({ error: `Query parameter q must be at most ${MAX_QUERY_LENGTH} characters` });
+    }
     const limitNum = Number(limit);
     if (!Number.isInteger(limitNum) || limitNum < 1 || limitNum > 100) {
       return reply.status(400).send({ error: 'Query parameter limit must be an integer between 1 and 100' });
@@ -107,7 +112,7 @@ export async function buildApp(options: { logger?: boolean } = {}) {
 
   app.post('/workspaces/:workspaceId/ask', async (req, reply) => {
     const { workspaceId } = req.params as { workspaceId: string };
-    const schema = z.object({ question: z.string().min(1) });
+    const schema = z.object({ question: z.string().min(1).max(MAX_QUERY_LENGTH) });
     const body = schema.parse(req.body);
     const result = await askWorkspace(workspaceId, body.question);
     return result;
@@ -142,6 +147,11 @@ export async function buildApp(options: { logger?: boolean } = {}) {
     }
     if (err instanceof OkfValidationError) {
       return reply.status(400).send({ error: err.message });
+    }
+    const fastifyErr = err as { statusCode?: number; message?: string };
+    const statusCode = fastifyErr.statusCode;
+    if (typeof statusCode === 'number' && statusCode >= 400 && statusCode < 500) {
+      return reply.status(statusCode).send({ error: fastifyErr.message || 'Request error' });
     }
     reply.status(500).send({ error: 'Internal server error' });
   });

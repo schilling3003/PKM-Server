@@ -30,8 +30,25 @@
 - Workspace ID enforced in every DB query and service request.
 - Strict Content Security Policy; Markdown rendered through a hardened,
   allow-list-based pipeline.
-- Attachment uploads limited by size, type, and scanned for executable content.
-- Rate limiting at API gateway and AI service.
+- Attachment uploads limited by size and validated against a magic-byte allow-list
+  (`image/png`, `image/jpeg`, `image/gif`, `image/webp`, `application/pdf`,
+  `text/plain`, `text/markdown`); executable, HTML, SVG, and unknown types are
+  rejected. Downloads are proxied through the API and served with
+  `Content-Disposition: attachment` and `X-Content-Type-Options: nosniff`.
+- Rate limiting at API gateway (`/auth/login`, `/auth/register`, `/workspaces/:id/search`,
+  `/workspaces/:id/ask`) backed by Redis with an in-memory fallback, applied per IP
+  and per account.
+- Search `q` and ask `question` capped at 500 characters.
+- AI service `/embed` and `/ask` require a shared `X-API-Key` in both directions.
+- Session cookies are signed, HTTP-only, `SameSite=Lax`, and cleared on logout; the
+  signed cookie value is added to a Redis-backed server-side blocklist on `/auth/logout`
+  so the token cannot be reused before `SESSION_MAX_AGE_SECONDS` expires.
+- Production startup refuses to start if `SESSION_SECRET`, `S3_SECRET_KEY`,
+  `DATABASE_URL`, or `AI_SERVICE_API_KEY` are missing.
+- YAML frontmatter parsing limits alias expansion (`maxAliasCount: 50`) and documents
+  are capped at 1 MiB to prevent billion-laughs-style and oversized-payload DoS.
+- `/health` returns only top-level status and version, without internal service names
+  or latencies.
 - Input validation and sanitization at all boundaries.
 - OWASP ASVS Level 2 controls mapped to tests and evidence.
 

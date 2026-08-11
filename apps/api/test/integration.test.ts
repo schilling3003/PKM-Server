@@ -10,7 +10,18 @@ let app: App;
 let cookie: string;
 
 beforeAll(async () => {
+  // Raise rate limits so the integration tests are not throttled.
+  process.env.RATE_LIMIT_AUTH_IP_MAX = '100';
+  process.env.RATE_LIMIT_AUTH_ACCOUNT_MAX = '100';
+  process.env.RATE_LIMIT_SEARCH_IP_MAX = '100';
+  process.env.RATE_LIMIT_SEARCH_ACCOUNT_MAX = '100';
+  process.env.RATE_LIMIT_ASK_IP_MAX = '100';
+  process.env.RATE_LIMIT_ASK_ACCOUNT_MAX = '100';
+
   await migrate(pool);
+  await pool.query(
+    'TRUNCATE users, workspace_members, workspaces, documents, revisions, document_links, document_chunks, attachments CASCADE'
+  );
   app = await buildApp({ logger: false });
   await registerAuthRoutes(app);
 
@@ -140,6 +151,30 @@ describe('workspace isolation', () => {
     const answer2 = JSON.parse(ask2.payload);
     expect(answer1.citations.length).toBe(1);
     expect(answer2.citations.length).toBe(0);
+  });
+
+  it('rejects search q and ask question over 500 characters', async () => {
+    const ws = await createWorkspace('Input Limits');
+    await createDoc(ws.id, 'note.md', '---\ntype: Note\n---\n\nContent.\n');
+
+    const oversized = 'a'.repeat(501);
+
+    const search = await app.inject({
+      ...withCookie(),
+      method: 'GET',
+      url: `/workspaces/${ws.id}/search?q=${encodeURIComponent(oversized)}`,
+    });
+    expect(search.statusCode).toBe(400);
+    expect(search.payload).toContain('500');
+
+    const ask = await app.inject({
+      ...withCookie(),
+      method: 'POST',
+      url: `/workspaces/${ws.id}/ask`,
+      payload: { question: oversized },
+    });
+    expect(ask.statusCode).toBe(400);
+    expect(ask.payload).toContain('500');
   });
 });
 
@@ -306,5 +341,31 @@ describe('document CRUD and links', () => {
     const listAfter = await app.inject({
     ...withCookie(), method: 'GET', url: `/workspaces/${ws.id}/documents` });
     expect(JSON.parse(listAfter.payload).length).toBe(1);
+  });
+});
+
+describe('document safety limits', () => {
+  it('rejects documents larger than 1 MiB', async () => {
+    const ws = await createWorkspace('SizeLimit');
+    const big = 'x'.repeat(2 * 1024 * 1024);
+    const res = await app.inject({
+      ...withCookie(),
+      method: 'POST',
+      url: `/workspaces/${ws.id}/documents`,
+      payload: { path: 'big.md', content: `---\ntype: Note\n---\n\n${big}\n` },
+    });
+    expect(res.statusCode).toBe(413);
+  });
+
+  it('rejects YAML frontmatter alias bombs', async () => {
+    const ws = await createWorkspace('YamlBomb');
+    const content = '---\na: &a [x,x,x]\nb: &b [*a,*a,*a,*a,*a,*a,*a,*a,*a]\nc: &c [*b,*b,*b,*b,*b,*b,*b,*b,*b]\n---\nbody';
+    const res = await app.inject({
+      ...withCookie(),
+      method: 'POST',
+      url: `/workspaces/${ws.id}/documents`,
+      payload: { path: 'bomb.md', content },
+    });
+    expect(res.statusCode).toBe(400);
   });
 });

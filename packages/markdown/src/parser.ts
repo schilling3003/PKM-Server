@@ -31,7 +31,10 @@ export function parseCanonical(content: string): CanonicalDocument {
     frontmatterRaw = match[1];
     body = normalized.slice(match[0].length);
     if (frontmatterRaw.trim()) {
-      const parsed = parseYaml(frontmatterRaw, { strict: false });
+      const parsed = parseYaml(frontmatterRaw, {
+        strict: false,
+        maxAliasCount: 50,
+      });
       if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
         frontmatter = parsed as Record<string, unknown>;
       } else if (parsed !== null) {

@@ -26,7 +26,7 @@ async function checkRedis(client: ReturnType<typeof createClient>) {
 async function checkAi() {
   const start = performance.now();
   try {
-    const res = await fetch(`${aiUrl}/health`);
+    const res = await fetch(`${aiUrl}/health`, { headers: aiHeaders() });
     if (!res.ok) throw new Error(`status ${res.status}`);
     return { status: 'ok' as const, latencyMs: Math.round(performance.now() - start) };
   } catch (err) {
@@ -35,23 +35,30 @@ async function checkAi() {
   }
 }
 
+function aiHeaders(): Record<string, string> {
+  const headers: Record<string, string> = {};
+  const key = process.env.AI_SERVICE_API_KEY;
+  if (key) headers['X-API-Key'] = key;
+  return headers;
+}
+
 async function main() {
   const app = await buildApp();
-  await registerAuthRoutes(app);
-  await registerAttachmentRoutes(app);
   const redisClient = createClient({ url: redisUrl });
   redisClient.on('error', (err) => app.log.warn({ msg: 'redis client error', error: err.message }));
 
-  app.get('/health', async () => {
-    const services: Record<string, { status: 'ok' | 'error'; latencyMs: number; message?: string }> = {};
-    try { services.postgres = await checkPostgres(); } catch (err) { app.log.warn({ msg: 'postgres health check failed', error: String(err) }); services.postgres = { status: 'error', latencyMs: 0, message: 'unavailable' }; }
-    try { services.redis = await checkRedis(redisClient); } catch (err) { app.log.warn({ msg: 'redis health check failed', error: String(err) }); services.redis = { status: 'error', latencyMs: 0, message: 'unavailable' }; }
-    services.ai = await checkAi();
+  await registerAuthRoutes(app, { redisClient });
+  await registerAttachmentRoutes(app);
 
-    const degraded = Object.values(services).some((s) => s.status !== 'ok');
+  app.get('/health', async () => {
+    const services: { status: 'ok' | 'error' }[] = [];
+    try { services.push(await checkPostgres()); } catch (err) { app.log.warn({ msg: 'postgres health check failed', error: String(err) }); services.push({ status: 'error' }); }
+    try { services.push(await checkRedis(redisClient)); } catch (err) { app.log.warn({ msg: 'redis health check failed', error: String(err) }); services.push({ status: 'error' }); }
+    services.push(await checkAi());
+
+    const degraded = services.some((s) => s.status !== 'ok');
     return {
       status: degraded ? 'degraded' : 'ok',
-      services,
       version: '0.1.0',
     };
   });
