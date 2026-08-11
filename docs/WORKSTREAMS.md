@@ -12,7 +12,7 @@
 | 6 | Semantic search, embeddings, vector retrieval | coordinator | done | 1, 2 |
 | 7 | Grounded AI answers, citations, abstention, diff editing | coordinator | done | 1, 6 |
 | 8 | Collaboration, presence, reconnects, conflicts, concurrent edits | unassigned | planned | 2, 3 |
-| 9 | Authentication, workspace membership, authorization, isolation | child-auth | in_progress | — |
+| 9 | Authentication, workspace membership, authorization, isolation | child-auth | done | — |
 | 10 | Attachments, safe rendering, imports, exports, migration | child-attachments | in_progress | 1, 9 |
 | 11 | Responsive design, accessibility, theming, search UI, quick switcher | child-webui | in_progress | 3, 4 |
 | 12 | Performance, resilience, rate limiting, observability, backups | unassigned | planned | all |
@@ -30,7 +30,7 @@
 
 | Session | Branch | Workstream | Exclusive ownership | Must not touch |
 |---------|--------|------------|---------------------|----------------|
-| child-auth | `devin/pkm-v1-auth` | 9 | `apps/api/src/auth.ts`, `apps/api/src/middleware/auth.ts`, `apps/api/src/migrations/0004_auth.sql`, `apps/web/app/login/page.tsx`, `apps/web/lib/auth.ts`, `apps/web/middleware.ts`, `apps/web/components/UserNav.tsx` | `apps/api/src/app.ts`, `apps/web/app/workspaces/[id]/page.tsx`, `apps/web/app/page.tsx`, `apps/web/app/layout.tsx`, `apps/web/lib/api.ts` |
+| child-auth | `devin/pkm-v1-auth` | 9 (done) | `apps/api/src/auth.ts`, `apps/api/src/middleware/auth.ts`, `apps/api/src/migrations/0004_auth.sql`, `apps/web/app/login/page.tsx`, `apps/web/lib/auth.ts`, `apps/web/middleware.ts`, `apps/web/components/UserNav.tsx` | `apps/api/src/app.ts`, `apps/web/app/workspaces/[id]/page.tsx`, `apps/web/app/page.tsx`, `apps/web/app/layout.tsx`, `apps/web/lib/api.ts` |
 | child-attachments | `devin/pkm-v1-attachments` | 10 | `apps/api/src/attachments.ts`, `apps/api/src/migrations/0005_attachments.sql`, `apps/web/app/workspaces/[id]/attachments/page.tsx`, `apps/web/lib/attachments.ts`, `apps/web/components/AttachmentUpload.tsx` | `apps/api/src/app.ts`, `apps/web/app/workspaces/[id]/page.tsx`, `apps/web/app/page.tsx`, `apps/web/app/layout.tsx`, `apps/web/lib/api.ts` |
 | child-webui | `devin/pkm-v1-search-theme` | 5 & 11 | `apps/web/components/SearchPalette.tsx`, `apps/web/components/CommandPalette.tsx`, `apps/web/hooks/useSearch.ts`, `apps/web/app/workspaces/[id]/page.tsx` (search integration only), `apps/web/app/globals.css` (theme tokens), `apps/web/app/layout.tsx` (theme class) | `apps/api/*` except route registration helpers, `apps/web/lib/api.ts` (may read but not edit), `apps/web/app/login/*` |
 
