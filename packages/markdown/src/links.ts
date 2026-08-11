@@ -105,6 +105,24 @@ function tryDecodeUrl(url: string): string {
   }
 }
 
+export function insertWikilink(
+  value: string,
+  cursor: number,
+  query: string,
+  targetPath: string
+): { value: string; cursor: number } {
+  const target = targetPath.replace(/\.md$/i, '');
+  const triggerStart = cursor - query.length - 2;
+  const textBefore = value.slice(0, triggerStart);
+  const textAfter = value.slice(cursor);
+  const display = query.trim();
+  const insertion = display ? `[[${target}|${display}]]` : `[[${target}]]`;
+  return {
+    value: `${textBefore}${insertion}${textAfter}`,
+    cursor: triggerStart + insertion.length,
+  };
+}
+
 export function standardToWiki(body: string): string {
   const tree = unified().use(remarkParse).parse(body);
   const replacements: { start: number; end: number; text: string }[] = [];

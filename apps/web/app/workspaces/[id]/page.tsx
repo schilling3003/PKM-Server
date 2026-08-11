@@ -5,7 +5,7 @@ import NextLink from 'next/link';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { wikiToStandard, extractWikiLinks } from '@pkm/markdown';
+import { wikiToStandard, extractWikiLinks, insertWikilink as buildWikilinkInsertion } from '@pkm/markdown';
 import OutlinePanel from './_components/OutlinePanel';
 import FrontmatterPanel from './_components/FrontmatterPanel';
 import {
@@ -728,16 +728,16 @@ export default function WorkspacePage() {
     const el = textareaRef.current;
     if (!el || wikilinkQuery === null) return;
     const start = el.selectionStart;
-    const textBefore = content.slice(0, start - wikilinkQuery.length);
-    const textAfter = content.slice(start);
-    const display = wikilinkQuery.trim();
-    const insertion = display ? `[[${target.path}|${display}]]` : `[[${target.path}]]`;
-    const newValue = `${textBefore}${insertion}${textAfter}`;
+    const { value: newValue, cursor: pos } = buildWikilinkInsertion(
+      content,
+      start,
+      wikilinkQuery,
+      target.path
+    );
     setContent(newValue);
     setWikilinkQuery(null);
     setIsDirty(true);
     requestAnimationFrame(() => {
-      const pos = start - wikilinkQuery.length + insertion.length;
       el.setSelectionRange(pos, pos);
       el.focus();
     });

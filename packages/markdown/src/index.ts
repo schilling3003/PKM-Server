@@ -16,6 +16,7 @@ export {
   extractOutline,
   wikiToStandard,
   standardToWiki,
+  insertWikilink,
   type WikiLink,
   type StandardLink,
   type Heading,

@@ -26,6 +26,16 @@ LLM_MODEL = os.getenv("LLM_MODEL", "gpt-4o-mini")
 LLM_MAX_TOKENS = int(os.getenv("LLM_MAX_TOKENS", "512"))
 LLM_TIMEOUT_SECONDS = float(os.getenv("LLM_TIMEOUT_SECONDS", "30"))
 
+# Optional embedding provider. Supports an OpenAI-compatible /v1/embeddings
+# endpoint or a local sentence-transformers model. Falls back to a
+# deterministic stub when no provider is configured, so the rest of the
+# product (full-text search, document storage) still works.
+EMBEDDING_PROVIDER = os.getenv("EMBEDDING_PROVIDER", "stub")
+EMBEDDING_BASE_URL = os.getenv("EMBEDDING_BASE_URL")
+EMBEDDING_API_KEY = os.getenv("EMBEDDING_API_KEY")
+EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "text-embedding-3-small")
+EMBEDDING_DIMENSIONS = int(os.getenv("EMBEDDING_DIMENSIONS", "384"))
+
 if NODE_ENV == "production" and not AI_SERVICE_API_KEY:
     raise RuntimeError("AI_SERVICE_API_KEY is required in production")
 
@@ -67,14 +77,86 @@ class EmbedResponse(BaseModel):
     dimensions: int
 
 
-@app.post("/embed", response_model=EmbedResponse, dependencies=[Depends(verify_api_key)])
-async def embed(req: EmbedRequest):
-    # Walking skeleton: deterministic stub embedding.
-    dims = 384
-    vec = [float(ord(c) % 100) / 100.0 for c in req.text[:dims]]
+def _stub_embedding(text: str, dims: int) -> list[float]:
+    vec = [float(ord(c) % 100) / 100.0 for c in text[:dims]]
     if len(vec) < dims:
         vec.extend([0.0] * (dims - len(vec)))
-    return {"embedding": vec, "dimensions": dims}
+    return vec
+
+
+# Lazy, cached sentence-transformers model.
+_sentence_transformer_model = None
+
+
+def _get_sentence_transformer():
+    global _sentence_transformer_model
+    if _sentence_transformer_model is None:
+        try:
+            from sentence_transformers import SentenceTransformer
+        except ImportError as exc:
+            raise RuntimeError(
+                "EMBEDDING_PROVIDER=sentence-transformers requires the sentence-transformers package"
+            ) from exc
+        # all-MiniLM-L6-v2 produces 384-dimensional vectors, matching the default schema.
+        # If the shared EMBEDDING_MODEL looks like an OpenAI model name, fall back to a
+        # local sentence-transformers model instead.
+        model_name = (
+            EMBEDDING_MODEL
+            if EMBEDDING_MODEL and not EMBEDDING_MODEL.startswith("text-")
+            else "sentence-transformers/all-MiniLM-L6-v2"
+        )
+        _sentence_transformer_model = SentenceTransformer(model_name)
+    return _sentence_transformer_model
+
+
+async def _embed_openai(text: str) -> list[float]:
+    if not EMBEDDING_BASE_URL or not EMBEDDING_API_KEY:
+        raise RuntimeError(
+            "EMBEDDING_PROVIDER=openai requires EMBEDDING_BASE_URL and EMBEDDING_API_KEY"
+        )
+    payload = {
+        "input": text,
+        "model": EMBEDDING_MODEL,
+        "dimensions": EMBEDDING_DIMENSIONS,
+    }
+    headers = {
+        "Authorization": f"Bearer {EMBEDDING_API_KEY}",
+        "Content-Type": "application/json",
+    }
+    resp = await app.state.http.post(
+        f"{EMBEDDING_BASE_URL.rstrip('/')}/v1/embeddings",
+        json=payload,
+        headers=headers,
+        timeout=LLM_TIMEOUT_SECONDS,
+    )
+    resp.raise_for_status()
+    data = resp.json()
+    return data["data"][0]["embedding"]
+
+
+async def _embed_text(text: str) -> list[float]:
+    provider = EMBEDDING_PROVIDER.lower()
+    if provider == "openai":
+        return await _embed_openai(text)
+    if provider == "sentence-transformers":
+        model = _get_sentence_transformer()
+        return model.encode(text).tolist()
+    if provider == "stub":
+        return _stub_embedding(text, EMBEDDING_DIMENSIONS)
+    raise RuntimeError(f"Unknown EMBEDDING_PROVIDER: {EMBEDDING_PROVIDER}")
+
+
+@app.post("/embed", response_model=EmbedResponse, dependencies=[Depends(verify_api_key)])
+async def embed(req: EmbedRequest):
+    try:
+        vec = await _embed_text(req.text)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
+    if len(vec) > EMBEDDING_DIMENSIONS:
+        vec = vec[:EMBEDDING_DIMENSIONS]
+    if len(vec) < EMBEDDING_DIMENSIONS:
+        vec.extend([0.0] * (EMBEDDING_DIMENSIONS - len(vec)))
+    return {"embedding": vec, "dimensions": EMBEDDING_DIMENSIONS}
 
 
 class AskRequest(BaseModel):

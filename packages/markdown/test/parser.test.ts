@@ -8,10 +8,29 @@ import {
   extractOutline,
   wikiToStandard,
   standardToWiki,
+  insertWikilink,
   MAX_DOCUMENT_BYTES,
   MAX_FRONTMATTER_BYTES,
   MAX_YAML_ALIAS_COUNT,
 } from '../src/index.js';
+
+describe('insertWikilink', () => {
+  it('replaces [[query with a wikilink and removes the .md extension', () => {
+    const value = 'See [[roa';
+    const cursor = value.length;
+    const result = insertWikilink(value, cursor, 'roa', 'roadmap.md');
+    expect(result.value).toBe('See [[roadmap|roa]]');
+    expect(result.cursor).toBe('See [[roadmap|roa]]'.length);
+  });
+
+  it('inserts a wikilink without an alias when the query is empty', () => {
+    const value = 'See [[';
+    const cursor = value.length;
+    const result = insertWikilink(value, cursor, '', 'roadmap.md');
+    expect(result.value).toBe('See [[roadmap]]');
+    expect(result.cursor).toBe('See [[roadmap]]'.length);
+  });
+});
 
 describe('parseCanonical', () => {
   it('parses frontmatter and body', () => {
