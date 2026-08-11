@@ -589,7 +589,11 @@ export default function WorkspacePage() {
   function handleArchive(target: Document) {
     archiveDocument(workspaceId, target.id)
       .then((d) => {
-        setDocuments((prev) => prev.filter((doc) => doc.id !== d.id));
+        setDocuments((prev) =>
+          prev
+            .map((doc) => (doc.id === target.id ? d : doc))
+            .sort((a, b) => a.path.localeCompare(b.path))
+        );
         if (doc?.id === target.id) {
           router.push(`/workspaces/${workspaceId}`);
         }

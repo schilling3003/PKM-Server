@@ -47,3 +47,5 @@ Restart the API after changing `.env`.
 - The workspace ID shown in the Next.js URL is the canonical one returned by the API; copy it from `GET /workspaces` if the UI is blocked.
 - Attachments are uploaded to MinIO (`http://localhost:9000`) using the bucket and credentials from `.env`.
 - The AI `/ask` endpoint returns an answer only when `LLM_BASE_URL` / `LLM_API_KEY` are configured; otherwise it returns a no-LLM warning with citations.
+- When starting `next start` in the background with `nohup`, use `env NEXT_BUILD_OUTPUT= pnpm --filter @pkm/web start` so the empty variable is passed correctly.
+- If small sidebar buttons (note-tree `dup`/`arch`, `Show archived`, right-sidebar `Restore`) do not respond to mouse clicks in the test harness, use keyboard `Tab`/`Enter` as a fallback.
