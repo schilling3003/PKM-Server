@@ -30,6 +30,13 @@ describe('insertWikilink', () => {
     expect(result.value).toBe('See [[roadmap]]');
     expect(result.cursor).toBe('See [[roadmap]]'.length);
   });
+
+  it('uses display text but omits the alias when it matches the target', () => {
+    const value = 'See [[do';
+    const cursor = value.length;
+    const result = insertWikilink(value, cursor, 'do', 'dog.md', 'Dog');
+    expect(result.value).toBe('See [[dog]]');
+  });
 });
 
 describe('parseCanonical', () => {

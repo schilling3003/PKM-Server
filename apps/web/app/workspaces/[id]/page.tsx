@@ -697,7 +697,7 @@ export default function WorkspacePage() {
               <button
                 type="button"
                 onClick={() => openNewDialog(node.path)}
-                className="rounded px-1 text-xs text-muted-foreground opacity-0 hover:bg-muted hover:text-foreground group-hover:opacity-100"
+                className="rounded px-1 text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
                 title={`New note in ${node.path}`}
               >
                 + new
@@ -728,7 +728,7 @@ export default function WorkspacePage() {
           <button
             type="button"
             onClick={() => handleDuplicate(d)}
-            className="ml-1 rounded px-1 text-xs text-muted-foreground opacity-0 hover:bg-muted hover:text-foreground group-hover:opacity-100"
+            className="ml-1 rounded px-1 text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
             aria-label="Duplicate note"
             title="Duplicate"
           >
@@ -737,7 +737,7 @@ export default function WorkspacePage() {
           <button
             type="button"
             onClick={() => handleArchive(d)}
-            className="ml-1 rounded px-1 text-xs text-muted-foreground opacity-0 hover:bg-muted hover:text-foreground group-hover:opacity-100"
+            className="ml-1 rounded px-1 text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
             aria-label="Archive note"
             title="Archive"
           >
@@ -750,7 +750,7 @@ export default function WorkspacePage() {
               setRenamePath(d.path);
               renamePathRef.current = d.path;
             }}
-            className="ml-1 rounded px-1 text-xs text-muted-foreground opacity-0 hover:bg-muted hover:text-foreground group-hover:opacity-100"
+            className="ml-1 rounded px-1 text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
             aria-label="Rename or move note"
           >
             rename
@@ -758,7 +758,7 @@ export default function WorkspacePage() {
           <button
             type="button"
             onClick={() => confirmDelete(d.id, d.path)}
-            className="ml-1 rounded px-1 text-xs text-destructive opacity-0 hover:bg-destructive/10 group-hover:opacity-100"
+            className="ml-1 rounded px-1 text-xs text-destructive hover:bg-destructive/10"
             aria-label="Delete note"
           >
             ×
@@ -781,11 +781,14 @@ export default function WorkspacePage() {
     const el = textareaRef.current;
     if (!el || wikilinkQuery === null) return;
     const start = el.selectionStart;
+    const displayText =
+      target.title ?? target.path.split('/').pop()?.replace(/\.md$/i, '');
     const { value: newValue, cursor: pos } = buildWikilinkInsertion(
       content,
       start,
       wikilinkQuery,
-      target.path
+      target.path,
+      displayText
     );
     setContent(newValue);
     setWikilinkQuery(null);
@@ -927,15 +930,22 @@ export default function WorkspacePage() {
             )}
             {documents.some((d) => d.archived_at) && (
               <div className="mt-4 border-t border-border pt-2">
-                <label className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <input
-                    type="checkbox"
-                    checked={showArchived}
-                    onChange={(e) => setShowArchived(e.target.checked)}
-                    className="rounded border-border"
-                  />
+                <button
+                  type="button"
+                  onClick={() => setShowArchived((v) => !v)}
+                  className="flex items-center gap-2 text-xs text-muted-foreground"
+                  aria-pressed={showArchived}
+                >
+                  <span
+                    className={`flex h-3.5 w-3.5 items-center justify-center rounded border border-border ${
+                      showArchived ? 'bg-primary text-primary-foreground' : 'bg-card'
+                    }`}
+                    aria-hidden="true"
+                  >
+                    {showArchived && '✓'}
+                  </span>
                   Show archived
-                </label>
+                </button>
                 {showArchived && (
                   <ul className="mt-2 space-y-1">
                     {documents

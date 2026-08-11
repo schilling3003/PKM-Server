@@ -111,14 +111,18 @@ export function insertWikilink(
   value: string,
   cursor: number,
   query: string,
-  targetPath: string
+  targetPath: string,
+  displayText?: string
 ): { value: string; cursor: number } {
   const target = targetPath.replace(/\.md$/i, '');
   const triggerStart = cursor - query.length - 2;
   const textBefore = value.slice(0, triggerStart);
   const textAfter = value.slice(cursor);
-  const display = query.trim();
-  const insertion = display ? `[[${target}|${display}]]` : `[[${target}]]`;
+  const display = (displayText ?? query).trim();
+  const insertion =
+    display && display.toLowerCase() !== target.toLowerCase()
+      ? `[[${target}|${display}]]`
+      : `[[${target}]]`;
   return {
     value: `${textBefore}${insertion}${textAfter}`,
     cursor: triggerStart + insertion.length,
