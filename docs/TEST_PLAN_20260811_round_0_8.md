@@ -1,7 +1,7 @@
 # PKM v1 round 0.8 end-to-end test plan
 
-Branch under test: `origin/devin/pkm-v1-search-ai`
-Environment: local Docker Compose stack (postgres, redis, minio, temporal) + AI service (port 8000) + API (port 4000) + web production build (port 3000)
+**Branch under test:** `origin/devin/pkm-v1-search-ai` (latest, including workstream 16)
+**Environment:** local Docker Compose stack (postgres, redis, minio, temporal) + AI service (port 8000) + API (port 4000) + Next.js production build (port 3000)
 
 ## Setup state assumed before execution
 
@@ -9,34 +9,34 @@ Environment: local Docker Compose stack (postgres, redis, minio, temporal) + AI 
 - `curl http://localhost:4000/health` returns `{"status":"ok","version":"0.1.0"}`.
 - `curl http://localhost:8000/health` returns `{"status":"ok","version":"0.1.0"}`.
 - `curl -s -o /dev/null -w "%{http_code}" http://localhost:3000/login` returns `200`.
+- API is the **unmodified production build**; no temporary `bcryptjs` patch is applied.
 
 ## Flow A — Registration, login, workspace and note creation
 
-**Goal:** Prove a new user can register, log in, create a workspace, create a note, edit and save Markdown, and see the file tree update.
-
-### Steps
+**Goal:** A new user can register, log in, create a workspace, create notes, edit and save Markdown, and see the file tree and link panels update.
 
 1. Open `http://localhost:3000/login`.
-2. Click "Need an account? Register" to switch the form to registration.
+2. Click "Need an account? Register".
 3. Enter email `pkm-tester-20260811@example.com` and password `TestPass123!`.
 4. Submit. Expect redirect to `/` (workspace list).
-5. On the workspace list, enter `Test Round 0.8` in the "New workspace name" input and click `Create`.
-6. Click the new workspace card to navigate to `/workspaces/{id}`.
-7. Click the `New` button in the left sidebar, enter `notes/intro.md` in the dialog, and click `Create`.
-8. Wait for the editor to load `intro.md`.
-9. In the Markdown source textarea, append the following at the end of the default frontmatter:
-   ```
+5. Enter `Test Round 0.8` in "New workspace name" and click `Create`.
+6. Click the new workspace card.
+7. Click `New` (or "New note"), enter `notes/intro.md`, click `Create`.
+8. In the Markdown source, enter:
+   ```markdown
+   ---
+   type: Note
+   ---
+
    ## Goals
-   
+
    - Build a Markdown-first PKM.
    - Use AI as an inspectable capability.
-   
-   ## References
-   See also [[Roadmap]].
    ```
-10. Press `Ctrl+S` (or click `Save`).
-11. Click the `New` button again, enter `notes/roadmap.md`, and create it with content containing:
-    ```
+9. Press `Ctrl+S` and wait for the Save button to disable and the `Saving…`/`Unsaved` indicators to settle.
+10. Click `New` again, enter `notes/Roadmap.md`, click `Create`.
+11. Replace content with:
+    ```markdown
     ---
     type: Note
     status: active
@@ -47,153 +47,184 @@ Environment: local Docker Compose stack (postgres, redis, minio, temporal) + AI 
 
     This is the project roadmap.
     ```
-12. Return to `intro.md` by clicking it in the file tree.
+12. Press `Ctrl+S` to save.
+13. Click `notes/intro.md` in the file tree, and add a wikilink `[[notes/Roadmap]]` in the References section. Press `Ctrl+S`.
 
 ### Pass/fail criteria
 
-- A.1 After submitting the registration form, the browser URL is `/` and the page shows the "Workspaces" heading and the `Create` button (not the login form).
-- A.2 The new workspace `Test Round 0.8` appears in the list immediately after creation.
-- A.3 The file tree in the left sidebar shows both `notes/intro.md` and `notes/roadmap.md`.
-- A.4 After editing `intro.md` and pressing `Ctrl+S`, the "Unsaved" indicator disappears and the right preview pane renders the new headings and `[[Roadmap]]` link.
-- A.5 The right "Note details" panel for `intro.md` shows an outgoing link to `roadmap.md` and no "No outgoing links" text.
-- A.6 The `roadmap.md` note details panel shows a backlink from `intro.md`.
+- A.1 Registration redirects to `/` and the workspace list appears.
+- A.2 `Test Round 0.8` appears in the workspace list.
+- A.3 File tree shows `notes/intro.md` and `notes/Roadmap.md`.
+- A.4 After saving `intro.md`, the preview pane and right panel show an outgoing link to `Roadmap.md` and no unresolved wikilink.
+- A.5 `Roadmap.md` right panel shows a backlink from `intro.md` and properties `type: Note`, `status: active`, tags `planning` and `v1`.
 
-## Flow B — Workspace isolation
+## Flow B — Autosave
 
-**Goal:** Prove one user's workspaces and notes are not visible to another user.
+**Goal:** The editor persists content after a typing pause without requiring `Ctrl+S`.
 
-### Steps
-
-1. Open a second browser context / incognito window to `http://localhost:3000/login`.
-2. Register a second account with email `pkm-tester-2-20260811@example.com` and password `TestPass123!`.
-3. Create a workspace named `Other Workspace`.
-4. Create a note `private.md` with content `# Private`.
-5. In the first browser window, refresh the workspace list (`/`).
-6. Switch the first browser to the second user's workspace URL by manually editing the address bar to `/workspaces/{other-workspace-id}`.
+1. Select `notes/intro.md`.
+2. Place the cursor at the end of the Markdown source.
+3. Type `\n\nAutosave test paragraph.`.
+4. Wait at least 1 second without pressing `Ctrl+S`.
 
 ### Pass/fail criteria
 
-- B.1 The first user's workspace list does not show `Other Workspace`.
-- B.2 Navigating directly to the second user's workspace URL shows an error/blank/forbidden state or redirects to `/` rather than displaying `private.md`.
-- B.3 The right panel and file tree do not contain `private.md`.
+- B.1 The header shows a `Saving…` indicator after the pause.
+- B.2 The `Save` button becomes disabled (or `Unsaved` disappears).
+- B.3 Refreshing the page and re-selecting `intro.md` shows the added paragraph still present.
 
-## Flow C — Search palette (Command-K)
+## Flow C — Wikilink autocomplete
 
-**Goal:** Prove the search/command palette finds a note by title and by content.
+**Goal:** Typing `[[` inside the editor suggests notes and inserts a wikilink.
 
-### Steps
-
-1. In the first browser window, inside `Test Round 0.8` workspace, click the `Search` button in the header (or press `Cmd+K` / `Ctrl+K`).
-2. Type `roadmap` in the search input.
-3. Press `Enter`.
-
-### Pass/fail criteria
-
-- C.1 The search palette opens and shows a query input with placeholder "Search notes, titles, or content…".
-- C.2 While typing `roadmap`, the result list includes `roadmap.md`.
-- C.3 Pressing `Enter` opens `roadmap.md` in the editor and the URL updates to `/workspaces/{id}?doc={roadmap-id}`.
-- C.4 Closing the palette (Esc) and reopening it with no query shows the most recent notes.
-
-## Flow D — Graph view
-
-**Goal:** Prove the graph view renders nodes and edges scoped to the current workspace.
-
-### Steps
-
-1. In `Test Round 0.8` workspace, click the `Graph` button in the header.
-2. Wait for the canvas to render.
-3. Hover over nodes and observe labels.
-4. Click the `Workspace` link to return to the note list.
+1. Select `notes/intro.md`.
+2. In the Markdown source, type `[[` at the end of a line.
+3. Type `road`.
+4. Wait for the autocomplete dropdown to show `Roadmap` (or `notes/Roadmap.md`).
+5. Press `Tab` or `Enter` (or click the dropdown item) to insert the link.
+6. Add a closing `]]` only if the inserted text does not already include it.
+7. Wait for autosave or press `Ctrl+S`.
 
 ### Pass/fail criteria
 
-- D.1 The graph page loads and shows the canvas with the legend text "X notes · Y links" where X ≥ 2 and Y ≥ 1 (because `intro.md` links to `roadmap.md`).
-- D.2 Nodes for `intro.md` and `roadmap.md` are visible (node labels or colors).
-- D.3 There is at least one edge connecting the `intro.md` node to the `roadmap.md` node.
-- D.4 No node from `Other Workspace` (e.g., `private.md`) appears in the graph.
+- C.1 The autocomplete dropdown appears after typing `[[road`.
+- C.2 Selecting the candidate inserts a valid wikilink (e.g. `[[notes/Roadmap|road]]` or `[[notes/Roadmap]]`).
+- C.3 The preview renders the link as a clickable button and the right panel updates the outgoing link.
 
-## Flow E — Outline and tags/properties panels
+## Flow D — Unlinked mentions
 
-**Goal:** Prove the right sidebar outline and frontmatter/tags/properties panels update with the active note.
+**Goal:** The right panel lists other notes whose titles appear in the current note body, even without an explicit wikilink.
 
-### Steps
-
-1. Select `roadmap.md`.
-2. Look at the right panel under "Note details".
-3. Expand the "Properties" section if collapsed.
-4. Select `intro.md` and observe the outline section.
-5. Click an outline heading to scroll the preview.
+1. Select `notes/Roadmap.md`.
+2. Add the text `Also see the intro note for context.` to the body.
+3. Save (Ctrl+S or wait for autosave).
+4. Look at the right panel "Unlinked mentions" section.
 
 ### Pass/fail criteria
 
-- E.1 The right panel shows the `type: Note` tag and `status: active` property for `roadmap.md`.
-- E.2 The tags `planning` and `v1` appear as pills in the right panel for `roadmap.md`.
-- E.3 The outline section for `intro.md` lists at least `Goals` and `References` headings with correct indentation.
-- E.4 Clicking an outline heading scrolls the preview pane to the corresponding heading.
+- D.1 The "Unlinked mentions" panel lists `intro.md` (because the word "intro" appears in Roadmap's body).
+- D.2 Clicking the mention navigates to `intro.md`.
 
-## Flow F — Attachment upload and download
+## Flow E — Duplicate, archive, and restore
 
-**Goal:** Prove a user can upload and download an attachment within a workspace.
+**Goal:** Notes can be duplicated, archived (soft-deleted), hidden from the active tree, and restored.
 
-### Steps
+1. In the file tree, hover over `notes/Roadmap.md` and click the `dup` button.
+2. Confirm a new note `notes/Roadmap (copy).md` appears in the tree.
+3. Hover over `notes/Roadmap (copy).md` and click the `arch` button.
+4. Confirm `notes/Roadmap (copy).md` disappears from the active file tree.
+5. At the bottom of the sidebar, check "Show archived".
+6. Confirm the archived note appears with a `restore` button.
+7. Click `restore`.
+8. Uncheck "Show archived" and confirm the restored note is back in the active tree.
+
+### Pass/fail criteria
+
+- E.1 Duplicate creates `notes/Roadmap (copy).md` with the same content.
+- E.2 Archive removes the note from the active file tree.
+- E.3 "Show archived" reveals the archived note.
+- E.4 Restore returns the note to the active file tree.
+
+## Flow F — Search palette (Command-K)
+
+**Goal:** The search/command palette finds a note by title/content.
+
+1. Press `Ctrl+K`.
+2. Type `roadmap`.
+3. Wait for results to filter, then press `Enter` or click the `Roadmap` result.
+
+### Pass/fail criteria
+
+- F.1 The palette opens with placeholder "Search notes, titles, or content…".
+- F.2 Typing `roadmap` shows `notes/Roadmap.md`.
+- F.3 Selecting it navigates to `notes/Roadmap.md`.
+
+## Flow G — Graph view
+
+**Goal:** The graph renders nodes and edges scoped to the current workspace.
+
+1. Click the `Graph` link in the header.
+2. Wait for the canvas.
+
+### Pass/fail criteria
+
+- G.1 The page shows `2 notes · 1 links`.
+- G.2 Nodes for `intro.md` and `Roadmap.md` are visible.
+- G.3 At least one edge connects the two nodes.
+
+## Flow H — Attachment upload and download
+
+**Goal:** A user can upload and download an attachment within a workspace.
 
 1. Create a small file `/tmp/pkm_test_attachment.txt` with content `PKM round 0.8 attachment test`.
-2. In `Test Round 0.8` workspace, click `Attachments` in the header.
-3. Click `choose a file`, select `/tmp/pkm_test_attachment.txt`, and upload.
+2. Click `Attachments` in the header.
+3. Choose `/tmp/pkm_test_attachment.txt` and upload.
 4. Wait for the attachment to appear in the list.
-5. Click `Download` for the attachment and observe the downloaded content.
+5. Click `Download` and verify the content.
 
 ### Pass/fail criteria
 
-- F.1 The attachments page shows the uploaded file with filename `pkm_test_attachment.txt`, content type `text/plain`, and size `31 B`.
-- F.2 Clicking `Download` triggers a download whose body equals `PKM round 0.8 attachment test`.
-- F.3 The downloaded file is not accessible to the second user (cross-user attachment isolation; confirmed via curl in Flow H).
+- H.1 The attachments page lists `pkm_test_attachment.txt`, `text/plain`, size `29 B`.
+- H.2 Downloading returns exactly `PKM round 0.8 attachment test`.
 
-## Flow G — Logout and re-login
+## Flow I — Workspace isolation and switching
 
-**Goal:** Prove logout invalidates the session and re-login restores access.
+**Goal:** A user's workspaces and notes are isolated.
 
-### Steps
+1. Return to `/`.
+2. Create a second workspace named `Other Workspace`.
+3. Create a note `private.md` with content `# Private`.
+4. Switch back to `Test Round 0.8` via the workspace dropdown.
+5. Confirm `private.md` is not in the file tree and only `intro.md`/`Roadmap.md` are visible.
 
-1. Click the `Logout` button in the top-right user nav.
+### Pass/fail criteria
+
+- I.1 The workspace dropdown lists both workspaces.
+- I.2 `Test Round 0.8` shows `notes/intro.md` and `notes/Roadmap.md`, not `private.md`.
+- I.3 `Other Workspace` shows `private.md`, not the Test Round 0.8 notes.
+
+## Flow J — Logout and re-login
+
+**Goal:** Logout invalidates the session and re-login restores access.
+
+1. Click `Logout`.
 2. Expect redirect to `/login`.
-3. Enter the first user's email and password and sign in.
-4. Navigate to `/` and click `Test Round 0.8`.
+3. Sign in with the same credentials.
+4. Confirm both workspaces are listed and `Test Round 0.8` still contains the notes.
 
 ### Pass/fail criteria
 
-- G.1 After logout, the `/` URL redirects to `/login` or shows the login form.
-- G.2 After re-login, the workspace list still contains `Test Round 0.8`.
-- G.3 Opening `Test Round 0.8` still shows `notes/intro.md` and `notes/roadmap.md`.
+- J.1 `/` redirects to `/login` after logout.
+- J.2 Re-login restores both workspaces.
+- J.3 `Test Round 0.8` still shows `notes/intro.md` and `notes/Roadmap.md`.
 
-## Flow H — Curl verification of workspace isolation, graph leakage, and CSP
+## Flow K — Curl verification of isolation, graph leakage, and CSP
 
-**Goal:** Use HTTP-level checks to confirm the same protections the UI relies on.
+**Goal:** HTTP-level checks confirm the protections the UI relies on.
 
-### Steps
-
-1. Use `curl -I http://localhost:3000/login` and capture the `Content-Security-Policy` header.
-2. Verify the CSP contains a `nonce-` value and does not contain `unsafe-inline` or `unsafe-eval`.
-3. Register `user1` and `user2` via `curl` (or reuse the UI session cookies) and capture their session cookies.
-4. As `user1`, create a workspace and note; record the workspace ID `WS1` and note ID `D1`.
-5. As `user2`, attempt `curl -b user2.jar http://localhost:4000/workspaces/{WS1}/documents` and `curl -b user2.jar http://localhost:4000/workspaces/{WS1}/graph`.
-6. As `user2`, create their own workspace and note; fetch both users' graph endpoints.
-7. Verify the graph node IDs are disjoint.
+1. `curl -I http://localhost:3000/login` and capture `Content-Security-Policy`.
+2. Verify CSP contains `nonce-...` and does not contain `unsafe-inline` or `unsafe-eval`; verify `X-Powered-By` is absent.
+3. Register `u1` and `u2` via `curl` and capture their session cookies.
+4. As `u1`, create a workspace and note; record `WS1` and `D1`.
+5. As `u2`, attempt `GET /workspaces/{WS1}/documents`, `GET /workspaces/{WS1}/documents/{D1}`, `GET /workspaces/{WS1}/graph`, `GET /workspaces/{WS1}/attachments` (if attachment id available). Expect `403`.
+6. As `u2`, create their own workspace/note; fetch both users' graph endpoints.
+7. Verify the graph node ID sets are disjoint.
 
 ### Pass/fail criteria
 
-- H.1 `Content-Security-Policy` header is present on `http://localhost:3000/login`.
-- H.2 The `script-src` directive contains `nonce-` and neither `unsafe-inline` nor `unsafe-eval`.
-- H.3 `X-Powered-By` header is absent.
-- H.4 `user2` receives HTTP `403` for `GET /workspaces/{WS1}/documents`, `GET /workspaces/{WS1}/documents/{D1}`, and `GET /workspaces/{WS1}/graph`.
-- H.5 The graph JSON for `user1` and `user2` has an empty intersection of node IDs.
+- K.1 CSP header is present and nonce-based.
+- K.2 `script-src` contains `nonce-...` and no `unsafe-inline`/`unsafe-eval`.
+- K.3 `X-Powered-By` header is absent.
+- K.4 `u2` receives HTTP `403` for all cross-workspace endpoints.
+- K.5 The graph JSON node ID intersection between `u1` and `u2` is empty.
 
 ## Recording annotations
 
-- `setup`: "Local Docker Compose stack, AI service, API, and production web server are running; health checks pass."
+- `setup`: "Latest `origin/devin/pkm-v1-search-ai` checked out; Docker Compose, AI service, API production build, and web production build running; health checks pass."
 - `test_start` before each flow above.
 - `assertion` after each meaningful check with the result passed/failed.
 
-## Known temporary setup note
+## Known issues to watch for
 
-The production API build (`pnpm --filter @pkm/api start`) fails with `bcrypt.hash is not a function` because the source uses a namespace import against `bcryptjs`'s default CommonJS export. For this test run the generated `apps/api/dist/auth.js` was temporarily patched to `import bcrypt from 'bcryptjs';` so registration/login could be exercised. This should be fixed in source and the test plan retested against an unmodified production build.
+- The production API build previously failed with `bcrypt.hash is not a function` due to a namespace import of `bcryptjs`. If this reappears, the source fix did not take effect.
+- The create-note dialog previously required careful focus handling; it now uses `autoFocus` on the path input.
