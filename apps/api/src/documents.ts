@@ -242,6 +242,14 @@ async function insertRevision(client: PoolClient, documentId: string, content: s
   );
 }
 
+function tryDecodeUrl(url: string): string {
+  try {
+    return decodeURI(url);
+  } catch {
+    return url;
+  }
+}
+
 async function syncLinks(client: PoolClient, workspaceId: string, documentId: string, content: string) {
   await client.query('DELETE FROM document_links WHERE source_document_id = $1', [documentId]);
 
@@ -250,18 +258,19 @@ async function syncLinks(client: PoolClient, workspaceId: string, documentId: st
   const targets = new Map<string, { type: string }>();
 
   for (const link of wiki) {
-    const target = normalizePath(link.target);
+    const target = normalizePath(link.target).toLowerCase();
     targets.set(target, { type: 'wiki' });
   }
   for (const link of standard) {
-    if (!link.url.endsWith('.md')) continue;
-    const target = normalizePath(link.url.slice(0, -3));
+    const decoded = tryDecodeUrl(link.url);
+    if (!decoded.endsWith('.md')) continue;
+    const target = normalizePath(decoded.slice(0, -3)).toLowerCase();
     targets.set(target, { type: 'markdown' });
   }
 
   for (const [targetPath, meta] of targets) {
     const { rows } = await client.query<{ id: string }>(
-      'SELECT id FROM documents WHERE workspace_id = $1 AND path = $2',
+      'SELECT id FROM documents WHERE workspace_id = $1 AND LOWER(path) = $2',
       [workspaceId, targetPath]
     );
     const targetId = rows[0]?.id ?? null;
@@ -278,8 +287,8 @@ async function resolveBacklinks(client: PoolClient, workspaceId: string, documen
   await client.query(
     `UPDATE document_links
      SET target_document_id = $1
-     WHERE workspace_id = $2 AND target_path = $3 AND target_document_id IS NULL`,
-    [documentId, workspaceId, path]
+     WHERE workspace_id = $2 AND LOWER(target_path) = $3 AND target_document_id IS NULL`,
+    [documentId, workspaceId, path.toLowerCase()]
   );
 }
 
