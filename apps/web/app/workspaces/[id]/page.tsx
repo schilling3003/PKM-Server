@@ -17,6 +17,9 @@ import {
   getDocument,
   getOutgoingLinks,
   getBacklinks,
+  getWorkspaceIndexStatus,
+  getDocumentIndexStatus,
+  type IndexStatus,
   listDocuments,
   listWorkspaces,
   getWorkspace,
@@ -265,6 +268,8 @@ export default function WorkspacePage() {
   const [wikilinkQuery, setWikilinkQuery] = useState<string | null>(null);
   const [wikilinkIndex, setWikilinkIndex] = useState(0);
   const [unlinkedMentions, setUnlinkedMentions] = useState<Document[]>([]);
+  const [indexStatus, setIndexStatus] = useState<IndexStatus | null>(null);
+  const [docIndexStatus, setDocIndexStatus] = useState<{ chunk_count: number; embedded_chunk_count: number; stale: boolean } | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const newNotePathRef = useRef<string>('');
   const renamePathRef = useRef<string>('');
@@ -289,12 +294,18 @@ export default function WorkspacePage() {
         setLoadingDocs(true);
         setError(null);
       })
-      .then(() => Promise.all([getWorkspace(workspaceId).catch(() => null), listWorkspaces(), listDocuments(workspaceId)]))
-      .then(([ws, wss, docs]) => {
+      .then(() => Promise.all([
+        getWorkspace(workspaceId).catch(() => null),
+        listWorkspaces(),
+        listDocuments(workspaceId),
+        getWorkspaceIndexStatus(workspaceId).catch(() => null),
+      ]))
+      .then(([ws, wss, docs, status]) => {
         if (cancelled) return;
         setWorkspace(ws ?? { id: workspaceId, name: workspaceId, created_at: '' });
         setWorkspaces(wss);
         setDocuments(docs.sort((a, b) => a.path.localeCompare(b.path)));
+        if (status) setIndexStatus(status);
       })
       .catch((e) => {
         if (!cancelled) setError(String(e));
@@ -339,6 +350,9 @@ export default function WorkspacePage() {
         setDoc(d);
         setContent(d.content);
         setIsDirty(false);
+        getDocumentIndexStatus(workspaceId, d.id)
+          .then((s) => { if (!cancelled) setDocIndexStatus(s); })
+          .catch(() => { /* ignore per-document status errors */ });
       })
       .catch((e) => {
         if (!cancelled) setError(String(e));
@@ -1123,6 +1137,28 @@ export default function WorkspacePage() {
                   </ul>
                 </section>
               )}
+              <section>
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Index status</h3>
+                {indexStatus ? (
+                  <div className="mt-2 space-y-1 text-xs text-muted-foreground">
+                    <p>{indexStatus.document_count} note(s)</p>
+                    <p>{indexStatus.indexed_document_count} indexed, {indexStatus.current_document_count} current</p>
+                    {indexStatus.stale_document_count > 0 && (
+                      <p className="text-amber-600">{indexStatus.stale_document_count} stale</p>
+                    )}
+                    <p>{indexStatus.chunk_count} chunks, {indexStatus.embedded_chunk_count} embedded</p>
+                    {docIndexStatus && (
+                      <p>
+                        This note: {docIndexStatus.chunk_count} chunk(s), {docIndexStatus.embedded_chunk_count} embedded
+                        {docIndexStatus.stale && <span className="text-amber-600">, stale</span>}
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <p className="mt-1 text-xs text-muted-foreground">Loading index status…</p>
+                )}
+              </section>
+
               <OutlinePanel content={content} />
               <FrontmatterPanel doc={doc} content={content} />
             </div>

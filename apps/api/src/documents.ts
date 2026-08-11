@@ -382,6 +382,53 @@ export async function archiveDocument(workspaceId: string, documentId: string): 
   return rows[0];
 }
 
+export interface IndexStatus {
+  document_count: number;
+  indexed_document_count: number;
+  current_document_count: number;
+  stale_document_count: number;
+  chunk_count: number;
+  embedded_chunk_count: number;
+}
+
+export async function getWorkspaceIndexStatus(workspaceId: string): Promise<IndexStatus> {
+  const { rows } = await pool.query<IndexStatus>(
+    `SELECT
+       COUNT(DISTINCT d.id)::int AS document_count,
+       COUNT(DISTINCT CASE WHEN dc.id IS NOT NULL THEN d.id END)::int AS indexed_document_count,
+       COUNT(DISTINCT CASE WHEN dc.id IS NOT NULL AND dc.content_hash = d.content_hash THEN d.id END)::int AS current_document_count,
+       COUNT(DISTINCT CASE WHEN dc.id IS NOT NULL AND dc.content_hash <> d.content_hash THEN d.id END)::int AS stale_document_count,
+       COUNT(dc.id)::int AS chunk_count,
+       COUNT(CASE WHEN dc.embedding IS NOT NULL THEN 1 END)::int AS embedded_chunk_count
+     FROM documents d
+     LEFT JOIN document_chunks dc ON dc.document_id = d.id
+     WHERE d.workspace_id = $1 AND d.archived_at IS NULL`,
+    [workspaceId]
+  );
+  return rows[0];
+}
+
+export async function getDocumentIndexStatus(workspaceId: string, documentId: string) {
+  const { rows: docRows } = await pool.query<DocumentRow>(
+    'SELECT id, content_hash FROM documents WHERE workspace_id = $1 AND id = $2 AND archived_at IS NULL',
+    [workspaceId, documentId]
+  );
+  const doc = docRows[0];
+  if (!doc) return null;
+
+  const { rows } = await pool.query(
+    `SELECT content_hash, embedding IS NOT NULL AS has_embedding
+     FROM document_chunks
+     WHERE document_id = $1`,
+    [documentId]
+  );
+  const chunks = rows as { content_hash: string; has_embedding: boolean }[];
+  const chunk_count = chunks.length;
+  const embedded_chunk_count = chunks.filter((c) => c.has_embedding).length;
+  const stale = chunk_count > 0 && chunks.some((c) => c.content_hash !== doc.content_hash);
+  return { document_id: doc.id, chunk_count, embedded_chunk_count, stale };
+}
+
 export async function restoreDocument(workspaceId: string, documentId: string): Promise<DocumentRow> {
   const { rows } = await pool.query<DocumentRow>(
     `UPDATE documents SET archived_at = NULL

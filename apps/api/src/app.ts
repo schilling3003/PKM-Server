@@ -114,6 +114,18 @@ export async function buildApp(options: { logger?: boolean } = {}) {
     return documents.getBacklinks(workspaceId, id);
   });
 
+  app.get('/workspaces/:workspaceId/index-status', async (req) => {
+    const { workspaceId } = req.params as { workspaceId: string };
+    return documents.getWorkspaceIndexStatus(workspaceId);
+  });
+
+  app.get('/workspaces/:workspaceId/documents/:id/index-status', async (req) => {
+    const { workspaceId, id } = req.params as { workspaceId: string; id: string };
+    const status = await documents.getDocumentIndexStatus(workspaceId, id);
+    if (!status) return { error: 'Document not found' };
+    return status;
+  });
+
   app.get('/workspaces/:workspaceId/documents/:id/links', async (req) => {
     const { workspaceId, id } = req.params as { workspaceId: string; id: string };
     return documents.getOutgoingLinks(workspaceId, id);

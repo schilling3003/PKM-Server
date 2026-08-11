@@ -4,6 +4,7 @@ import { registerAuthRoutes } from '../src/auth.js';
 import { registerGraphRoutes } from '../src/graph.js';
 import { pool } from '../src/db.js';
 import { migrate } from '../src/migrate.js';
+import { hashContent } from '@pkm/markdown';
 
 type App = Awaited<ReturnType<typeof buildApp>>;
 
@@ -430,6 +431,56 @@ describe('document safety limits', () => {
       payload: { path: 'bomb.md', content },
     });
     expect(res.statusCode).toBe(400);
+  });
+});
+
+describe('index status', () => {
+  it('reports workspace and per-document index counts and staleness', async () => {
+    const ws = await createWorkspace('Index Status');
+    const doc = await createDoc(
+      ws.id,
+      'status.md',
+      '---\ntype: Note\n---\n\nThis is a test note with enough text to be chunked.\n'
+    );
+
+    const wsStatus = await app.inject({
+      ...withCookie(),
+      method: 'GET',
+      url: `/workspaces/${ws.id}/index-status`,
+    });
+    expect(wsStatus.statusCode).toBe(200);
+    const wsBody = JSON.parse(wsStatus.payload);
+    expect(wsBody.document_count).toBe(1);
+    expect(wsBody.indexed_document_count).toBeGreaterThanOrEqual(0);
+    expect(wsBody.chunk_count).toBeGreaterThanOrEqual(0);
+
+    const docStatus = await app.inject({
+      ...withCookie(),
+      method: 'GET',
+      url: `/workspaces/${ws.id}/documents/${doc.id}/index-status`,
+    });
+    expect(docStatus.statusCode).toBe(200);
+    const docBody = JSON.parse(docStatus.payload);
+    expect(docBody.document_id).toBe(doc.id);
+    expect(typeof docBody.stale).toBe('boolean');
+    expect(typeof docBody.chunk_count).toBe('number');
+
+    // Simulate an out-of-band canonical update (e.g. import or migration) that does not re-index.
+    const newContent = '---\ntype: Note\n---\n\nUpdated content that differs from the original.\n';
+    await pool.query('UPDATE documents SET content = $1, content_hash = $2 WHERE id = $3', [
+      newContent,
+      hashContent(newContent),
+      doc.id,
+    ]);
+
+    const docStatusAfter = await app.inject({
+      ...withCookie(),
+      method: 'GET',
+      url: `/workspaces/${ws.id}/documents/${doc.id}/index-status`,
+    });
+    expect(docStatusAfter.statusCode).toBe(200);
+    const after = JSON.parse(docStatusAfter.payload);
+    expect(after.stale).toBe(true);
   });
 });
 
