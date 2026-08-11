@@ -4,6 +4,7 @@ import { performance } from 'node:perf_hooks';
 import { pool } from './db.js';
 import { migrate } from './migrate.js';
 import { buildApp } from './app.js';
+import { registerAuthRoutes } from './auth.js';
 
 const port = Number(process.env.API_PORT || 4000);
 const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379/0';
@@ -35,6 +36,7 @@ async function checkAi() {
 
 async function main() {
   const app = await buildApp();
+  await registerAuthRoutes(app);
   const redisClient = createClient({ url: redisUrl });
   redisClient.on('error', (err) => app.log.warn({ msg: 'redis client error', error: err.message }));
 

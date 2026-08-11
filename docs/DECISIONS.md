@@ -71,3 +71,22 @@ re-indexing across process restarts.
 
 **Reversibility**: Medium. Workers and workflows are isolated in `apps/api` and
 `apps/ai`.
+
+## AD-006: Authentication — bcrypt passwords and signed session cookies
+
+**Decision**: Store users with `bcrypt`-hashed passwords and authenticate API
+requests using signed `pkm_session` HTTP-only cookies via `@fastify/cookie`.
+Workspace access is enforced by the `workspace_members` table.
+
+**Alternatives**: Passwordless/OIDC-only, JWT access tokens, Redis-backed
+sessions.
+
+**Evidence**: Bcrypt is widely adopted for password hashing. Signed cookies keep
+session state out of the database for local development while remaining
+stateless. Workspace membership in Postgres keeps authorization logic in the
+same transaction boundary as the data. OIDC fields remain in `.env.example` for
+future provider abstraction.
+
+**Reversibility**: Medium. Replacing signed cookies with Redis sessions or OIDC
+tokens only affects `apps/api/src/auth.ts` and `apps/api/src/middleware/auth.ts`;
+`users` and `workspace_members` tables are provider-agnostic.

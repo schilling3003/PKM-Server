@@ -12,10 +12,13 @@
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
+    "@fastify/cookie": "11.1.2",
     "@fastify/cors": "^11.0.0",
     "@pkm/markdown": "workspace:*",
     "@pkm/okf": "workspace:*",
     "@pkm/shared": "workspace:*",
+    "@types/bcrypt": "5.0.2",
+    "bcrypt": "5.1.1",
     "dotenv": "^16.4.7",
     "fastify": "^5.2.1",
     "pg": "^8.13.1",

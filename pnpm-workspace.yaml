@@ -3,9 +3,11 @@ packages:
   - 'packages/*'
 
 allowBuilds:
+  bcrypt: true
   esbuild: true
   sharp: false
   unrs-resolver: false
 
 onlyBuiltDependencies:
   - esbuild
+  - bcrypt
