@@ -12,9 +12,9 @@
 | 6 | Semantic search, embeddings, vector retrieval | coordinator | done | 1, 2 |
 | 7 | Grounded AI answers, citations, abstention, diff editing | coordinator | done | 1, 6 |
 | 8 | Collaboration, presence, reconnects, conflicts, concurrent edits | unassigned | planned | 2, 3 |
-| 9 | Authentication, workspace membership, authorization, isolation | coordinator | v1-todo | — |
-| 10 | Attachments, safe rendering, imports, exports, migration | unassigned | planned | 1, 9 |
-| 11 | Responsive design, accessibility, theming, interaction states | unassigned | planned | 3, 4 |
+| 9 | Authentication, workspace membership, authorization, isolation | child-auth | in_progress | — |
+| 10 | Attachments, safe rendering, imports, exports, migration | child-attachments | in_progress | 1, 9 |
+| 11 | Responsive design, accessibility, theming, search UI, quick switcher | child-webui | in_progress | 3, 4 |
 | 12 | Performance, resilience, rate limiting, observability, backups | unassigned | planned | all |
 | 13 | Supply-chain security, privacy, threat model, abuse cases | unassigned | planned | 9, 10 |
 | 14 | Clean-checkout onboarding, development tooling, CI, release readiness | coordinator | in_progress | all |
@@ -23,8 +23,16 @@
 
 - Canonical Markdown and YAML frontmatter schema: `packages/shared`.
 - OpenAPI/tRPC API contracts: `packages/shared`.
-- Database migrations in `apps/api/prisma/migrations` (coordinator owned).
+- Database migrations in `apps/api/src/migrations` (coordinator owned; builders must not create conflicting `0004_*` files).
 - Docker Compose local stack: root `docker-compose.yml` (coordinator owned).
+
+## Current Parallel Builders
+
+| Session | Branch | Workstream | Exclusive ownership | Must not touch |
+|---------|--------|------------|---------------------|----------------|
+| child-auth | `devin/pkm-v1-auth` | 9 | `apps/api/src/auth.ts`, `apps/api/src/middleware/auth.ts`, `apps/api/src/migrations/0004_auth.sql`, `apps/web/app/login/page.tsx`, `apps/web/lib/auth.ts`, `apps/web/middleware.ts`, `apps/web/components/UserNav.tsx` | `apps/api/src/app.ts`, `apps/web/app/workspaces/[id]/page.tsx`, `apps/web/app/page.tsx`, `apps/web/app/layout.tsx`, `apps/web/lib/api.ts` |
+| child-attachments | `devin/pkm-v1-attachments` | 10 | `apps/api/src/attachments.ts`, `apps/api/src/migrations/0005_attachments.sql`, `apps/web/app/workspaces/[id]/attachments/page.tsx`, `apps/web/lib/attachments.ts`, `apps/web/components/AttachmentUpload.tsx` | `apps/api/src/app.ts`, `apps/web/app/workspaces/[id]/page.tsx`, `apps/web/app/page.tsx`, `apps/web/app/layout.tsx`, `apps/web/lib/api.ts` |
+| child-webui | `devin/pkm-v1-search-theme` | 5 & 11 | `apps/web/components/SearchPalette.tsx`, `apps/web/components/CommandPalette.tsx`, `apps/web/hooks/useSearch.ts`, `apps/web/app/workspaces/[id]/page.tsx` (search integration only), `apps/web/app/globals.css` (theme tokens), `apps/web/app/layout.tsx` (theme class) | `apps/api/*` except route registration helpers, `apps/web/lib/api.ts` (may read but not edit), `apps/web/app/login/*` |
 
 ## Integration Order
 
