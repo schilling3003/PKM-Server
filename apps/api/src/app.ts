@@ -109,6 +109,27 @@ export async function buildApp(options: { logger?: boolean } = {}) {
     return documents.listRevisions(workspaceId, id);
   });
 
+  app.get('/workspaces/:workspaceId/documents/:documentId/revisions/:revisionId', async (req, reply) => {
+    const { workspaceId, documentId, revisionId } = req.params as {
+      workspaceId: string;
+      documentId: string;
+      revisionId: string;
+    };
+    const revision = await documents.getRevision(workspaceId, documentId, revisionId);
+    if (!revision) return reply.status(404).send({ error: 'Revision not found' });
+    return revision;
+  });
+
+  app.post('/workspaces/:workspaceId/documents/:documentId/revisions/:revisionId/restore', async (req, reply) => {
+    const { workspaceId, documentId, revisionId } = req.params as {
+      workspaceId: string;
+      documentId: string;
+      revisionId: string;
+    };
+    const doc = await documents.restoreRevision(workspaceId, documentId, revisionId);
+    return doc;
+  });
+
   app.get('/workspaces/:workspaceId/documents/:id/backlinks', async (req) => {
     const { workspaceId, id } = req.params as { workspaceId: string; id: string };
     return documents.getBacklinks(workspaceId, id);

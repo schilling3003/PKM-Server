@@ -347,6 +347,107 @@ describe('document CRUD and links', () => {
   });
 });
 
+describe('revision history', () => {
+  it('lists, retrieves, and restores document revisions', async () => {
+    const ws = await createWorkspace('Revisions');
+    const doc = await createDoc(
+      ws.id,
+      'note.md',
+      '---\ntype: Note\n---\n\nFirst version of the note with enough text to be chunked.\n'
+    );
+
+    const list = await app.inject({
+      ...withCookie(),
+      method: 'GET',
+      url: `/workspaces/${ws.id}/documents/${doc.id}/revisions`,
+    });
+    expect(list.statusCode).toBe(200);
+    const revisions = JSON.parse(list.payload);
+    expect(revisions.length).toBeGreaterThanOrEqual(1);
+    expect(revisions[0]).toHaveProperty('id');
+    expect(revisions[0]).toHaveProperty('content_hash');
+    expect(revisions[0]).toHaveProperty('created_at');
+    expect(revisions[0].content).toBeUndefined();
+
+    const updateRes = await app.inject({
+      ...withCookie(),
+      method: 'PUT',
+      url: `/workspaces/${ws.id}/documents/${doc.id}`,
+      payload: {
+        content: '---\ntype: Note\n---\n\nSecond version of the note with updated content and enough text.\n',
+      },
+    });
+    expect(updateRes.statusCode).toBe(200);
+
+    const listAfterUpdate = await app.inject({
+      ...withCookie(),
+      method: 'GET',
+      url: `/workspaces/${ws.id}/documents/${doc.id}/revisions`,
+    });
+    const revisionsAfterUpdate = JSON.parse(listAfterUpdate.payload);
+    expect(revisionsAfterUpdate.length).toBeGreaterThanOrEqual(2);
+    const firstRevision = revisionsAfterUpdate[0];
+
+    const getRevision = await app.inject({
+      ...withCookie(),
+      method: 'GET',
+      url: `/workspaces/${ws.id}/documents/${doc.id}/revisions/${firstRevision.id}`,
+    });
+    expect(getRevision.statusCode).toBe(200);
+    const revisionBody = JSON.parse(getRevision.payload);
+    expect(revisionBody.content).toContain('First version');
+
+    const beforeRestore = JSON.parse(updateRes.payload);
+    const restore = await app.inject({
+      ...withCookie(),
+      method: 'POST',
+      url: `/workspaces/${ws.id}/documents/${doc.id}/revisions/${firstRevision.id}/restore`,
+    });
+    expect(restore.statusCode).toBe(200);
+    const restoredDoc = JSON.parse(restore.payload);
+    expect(restoredDoc.content).toContain('First version');
+    expect(new Date(restoredDoc.updated_at).getTime()).toBeGreaterThanOrEqual(
+      new Date(beforeRestore.updated_at).getTime()
+    );
+
+    const listAfterRestore = await app.inject({
+      ...withCookie(),
+      method: 'GET',
+      url: `/workspaces/${ws.id}/documents/${doc.id}/revisions`,
+    });
+    expect(JSON.parse(listAfterRestore.payload).length).toBeGreaterThanOrEqual(3);
+
+    const status = await app.inject({
+      ...withCookie(),
+      method: 'GET',
+      url: `/workspaces/${ws.id}/documents/${doc.id}/index-status`,
+    });
+    expect(status.statusCode).toBe(200);
+    const statusBody = JSON.parse(status.payload);
+    expect(statusBody.stale).toBe(false);
+    expect(statusBody.chunk_count).toBeGreaterThan(0);
+  });
+
+  it('returns 404 for missing revisions', async () => {
+    const ws = await createWorkspace('Revisions 404');
+    const doc = await createDoc(ws.id, 'note.md', '---\ntype: Note\n---\n\nBody.\n');
+
+    const getMissing = await app.inject({
+      ...withCookie(),
+      method: 'GET',
+      url: `/workspaces/${ws.id}/documents/${doc.id}/revisions/00000000-0000-0000-0000-000000000000`,
+    });
+    expect(getMissing.statusCode).toBe(404);
+
+    const restoreMissing = await app.inject({
+      ...withCookie(),
+      method: 'POST',
+      url: `/workspaces/${ws.id}/documents/${doc.id}/revisions/00000000-0000-0000-0000-000000000000/restore`,
+    });
+    expect(restoreMissing.statusCode).toBe(404);
+  });
+});
+
 describe('document lifecycle', () => {
   it('duplicates, archives, and restores documents', async () => {
     const ws = await createWorkspace('Lifecycle');

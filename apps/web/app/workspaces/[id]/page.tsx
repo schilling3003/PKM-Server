@@ -19,6 +19,8 @@ import {
   getBacklinks,
   getWorkspaceIndexStatus,
   getDocumentIndexStatus,
+  listRevisions,
+  restoreRevision,
   type IndexStatus,
   listDocuments,
   listWorkspaces,
@@ -27,6 +29,7 @@ import {
   type Document,
   type Link,
   type Workspace,
+  type Revision,
 } from '../../../lib/api';
 import SearchPalette from '@/components/SearchPalette';
 import ThemeToggle from '@/components/ThemeToggle';
@@ -270,6 +273,8 @@ export default function WorkspacePage() {
   const [unlinkedMentions, setUnlinkedMentions] = useState<Document[]>([]);
   const [indexStatus, setIndexStatus] = useState<IndexStatus | null>(null);
   const [docIndexStatus, setDocIndexStatus] = useState<{ chunk_count: number; embedded_chunk_count: number; stale: boolean } | null>(null);
+  const [revisions, setRevisions] = useState<Revision[]>([]);
+  const [loadingRevisions, setLoadingRevisions] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const newNotePathRef = useRef<string>('');
   const renamePathRef = useRef<string>('');
@@ -359,6 +364,33 @@ export default function WorkspacePage() {
       })
       .finally(() => {
         if (!cancelled) setLoadingDoc(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [workspaceId, selectedId]);
+
+  useEffect(() => {
+    let cancelled = false;
+    Promise.resolve()
+      .then(() => {
+        if (cancelled) return;
+        if (!selectedId) {
+          setRevisions([]);
+          return;
+        }
+        setLoadingRevisions(true);
+        setError(null);
+        return listRevisions(workspaceId, selectedId);
+      })
+      .then((revs) => {
+        if (!cancelled && revs) setRevisions(revs);
+      })
+      .catch((e) => {
+        if (!cancelled) setError(String(e));
+      })
+      .finally(() => {
+        if (!cancelled && selectedId) setLoadingRevisions(false);
       });
     return () => {
       cancelled = true;
@@ -560,6 +592,27 @@ export default function WorkspacePage() {
     restoreDocument(workspaceId, id)
       .then((d) => {
         setDocuments((prev) => [...prev, d].sort((a, b) => a.path.localeCompare(b.path)));
+      })
+      .catch((e) => setError(String(e)));
+  }
+
+  function handleRestoreRevision(revisionId: string) {
+    if (!doc) return;
+    restoreRevision(workspaceId, doc.id, revisionId)
+      .then((d) => {
+        setDoc(d);
+        setContent(d.content);
+        setDocuments((prev) =>
+          prev
+            .map((docItem) => (docItem.id === d.id ? d : docItem))
+            .sort((a, b) => a.path.localeCompare(b.path))
+        );
+        setIsDirty(false);
+        return listRevisions(workspaceId, d.id);
+      })
+      .then((revs) => setRevisions(revs))
+      .then(() => {
+        getDocumentIndexStatus(workspaceId, doc.id).then(setDocIndexStatus).catch(() => {});
       })
       .catch((e) => setError(String(e)));
   }
@@ -1153,6 +1206,33 @@ export default function WorkspacePage() {
                   </div>
                 ) : (
                   <p className="mt-1 text-xs text-muted-foreground">Loading index status…</p>
+                )}
+              </section>
+
+              <section>
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Revisions</h3>
+                {loadingRevisions ? (
+                  <p className="mt-1 text-xs text-muted-foreground">Loading revisions…</p>
+                ) : revisions.length === 0 ? (
+                  <p className="mt-1 text-xs text-muted-foreground">No revisions yet.</p>
+                ) : (
+                  <ul className="mt-2 space-y-2">
+                    {revisions.slice(0, 5).map((r) => (
+                      <li key={r.id} className="flex items-center justify-between gap-2">
+                        <span className="truncate text-xs text-muted-foreground" title={r.content_hash}>
+                          {new Date(r.created_at).toLocaleString()}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => handleRestoreRevision(r.id)}
+                          className="rounded px-1.5 py-0.5 text-xs text-primary hover:bg-muted"
+                          title="Restore this version"
+                        >
+                          Restore
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
                 )}
               </section>
 

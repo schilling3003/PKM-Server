@@ -207,6 +207,57 @@ export async function updateDocument(
   });
 }
 
+export async function restoreRevision(workspaceId: string, documentId: string, revisionId: string): Promise<DocumentRow> {
+  const existing = await getDocument(workspaceId, documentId);
+  if (!existing) {
+    const error = new Error('Document not found') as Error & { statusCode?: number };
+    error.statusCode = 404;
+    throw error;
+  }
+
+  const revision = await getRevision(workspaceId, documentId, revisionId);
+  if (!revision) {
+    const error = new Error('Revision not found') as Error & { statusCode?: number };
+    error.statusCode = 404;
+    throw error;
+  }
+
+  const parsed = parseDocumentContent(revision.content);
+  const hash = parsed.hash;
+  const title = computeTitle(parsed.frontmatter, existing.path);
+
+  if (!parsed.frontmatter.type) {
+    parsed.frontmatter.type = 'Note';
+  }
+  const canonicalContent = serializeCanonical({
+    frontmatter: parsed.frontmatter,
+    body: parsed.body,
+  });
+
+  const chunks = generateChunks(parsed.body);
+  const chunkEmbeddings = await safeEmbedChunks(chunks);
+
+  return await withTx(async (client) => {
+    const { rows } = await client.query<DocumentRow>(
+      `UPDATE documents
+       SET path = $1, title = $2, content = $3, frontmatter = $4, content_hash = $5,
+           search_vector = to_tsvector('english', coalesce($2, '') || ' ' || $3),
+           updated_at = now()
+       WHERE workspace_id = $6 AND id = $7
+       RETURNING id, workspace_id, path, title, content, frontmatter, content_hash, archived_at, created_at, updated_at`,
+      [existing.path, title, canonicalContent, JSON.stringify(parsed.frontmatter), hash, workspaceId, documentId]
+    );
+    const document = rows[0];
+    if (!document) throw new Error('Document not found');
+
+    await insertRevision(client, documentId, canonicalContent, hash);
+    await syncLinks(client, workspaceId, documentId, canonicalContent);
+    await resolveBacklinks(client, workspaceId, documentId, document.path);
+    await syncChunks(client, workspaceId, documentId, chunks, chunkEmbeddings, hash);
+    return document;
+  });
+}
+
 export async function deleteDocument(workspaceId: string, documentId: string): Promise<void> {
   await pool.query('DELETE FROM documents WHERE workspace_id = $1 AND id = $2', [workspaceId, documentId]);
 }
