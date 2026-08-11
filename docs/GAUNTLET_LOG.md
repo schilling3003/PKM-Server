@@ -393,7 +393,7 @@ clean shutdown.
 - Included the OKF route in `apps/web/scripts/axe-audit.js` for accessibility coverage.
 - Updated `docs/WORKSTREAMS.md` workstream 22 to `done`.
 
-**Evidence**: `pnpm -r typecheck`, `pnpm -r lint`, `pnpm -r test`, and `pnpm -r build` pass; `pnpm audit --prod` reports no known vulnerabilities; `apps/web/scripts/axe-audit.js` reports no critical or serious accessibility violations on the OKF page.
+**Evidence**: `pnpm -r typecheck`, `pnpm -r lint`, `pnpm -r test`, and `pnpm -r build` pass; `pnpm audit --prod` reports no known vulnerabilities; `apps/web/scripts/axe-audit.js` reports no critical or serious accessibility violations on the OKF page; `apps/web/scripts/verify-okf-ui.js` exports and imports an OKF v0.2 bundle through the new page.
 **Decisive gap**: None.
 **Regressions**: None.
 **Blockers**: None.
