@@ -90,3 +90,23 @@ future provider abstraction.
 **Reversibility**: Medium. Replacing signed cookies with Redis sessions or OIDC
 tokens only affects `apps/api/src/auth.ts` and `apps/api/src/middleware/auth.ts`;
 `users` and `workspace_members` tables are provider-agnostic.
+
+## AD-007: OKF reserved filenames (`index.md` and `log.md`)
+
+**Decision**: Treat `index.md` and `log.md` as OKF bundle-level reserved
+artifacts. The regular document API rejects these names for concept notes.
+OKF `export` routes reserved documents into `indices`/`logs` arrays, and
+`import` writes them back as workspace documents using `{ allowReserved: true }`.
+
+**Alternatives**: Allow `index.md`/`log.md` as normal concepts; map them to
+dedicated `index`/`log` tables; structure indices and logs with parsed sections.
+
+**Evidence**: `packages/okf` already declares `index.md` and `log.md` as reserved
+for concepts. Preserving them as content-addressed `{ path, content }` entries in
+the bundle makes round-trip import/export lossless without requiring a separate
+schema or parser for v1, and keeps canonical Markdown as the source of truth.
+
+**Reversibility**: Medium. The bundle shape is additive (`indices`/`logs` arrays
+of objects with `path` and `content`). A future front can switch to parsed
+`OkfIndex`/`OkfLog` structures while still accepting the current content-based
+entries for backward compatibility.

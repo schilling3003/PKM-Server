@@ -53,3 +53,19 @@ clean shutdown.
 **Changes**: `apps/web/app/workspaces/[id]/page.tsx`, `apps/web/eslint.config.mjs`, `apps/web/next.config.ts`, `docs/GAUNTLET_LOG.md`, `docs/WORKSTREAMS.md`.
 **Regressions**: None.
 **Blockers**: None.
+
+## Round 0.4 — Auth, attachments, search/theming integration and critic-driven fixes
+
+**Date**: 2026-08-11
+**Coordinator**: Devin
+**Verdict**: Integrated child workstreams and addressed round 0.3 critic findings.
+- Merged child branches `devin/pkm-v1-auth`, `devin/pkm-v1-attachments`, and `devin/pkm-v1-search-theme` into `devin/pkm-v1-search-ai`.
+- Wired `registerAuthRoutes` and `registerAttachmentRoutes` in `apps/api/src/index.ts`; enforced workspace membership on workspace creation; added `UserNav` and an attachments link to the web shell.
+- Addressed critic release blocker: OKF export now places `index.md` and `log.md` in `indices`/`logs`, and `okf/import` writes them back as reserved documents, enabling round-trip import/export.
+- Added reserved-filename guard in `documents.createDocument`/`updateDocument` so the regular document API cannot create `index.md`/`log.md` concepts.
+- Hardened `/search` `limit` validation, `MarkdownLink` external scheme allowlist, `handleSave` state sync, and `document_links.target_path` updates on rename.
+**Evidence**: `pnpm -r build`, `pnpm -r typecheck`, `pnpm -r lint`, and `pnpm -r test` pass; Docker Compose stack healthy; `curl` verifies auth login/logout, workspace create with membership, document CRUD, search, `/ask`, OKF round-trip with `index.md`/`log.md`, attachments upload/list, and workspace isolation; `curl` confirms non-members are rejected.
+**Decisive gap**: None identified after critic fixes; a fresh critic/tester pass is the next gate.
+**Changes**: `apps/api/src/app.ts`, `apps/api/src/auth.ts`, `apps/api/src/middleware/auth.ts`, `apps/api/src/attachments.ts`, `apps/api/src/index.ts`, `apps/api/src/documents.ts`, `apps/api/src/okf.ts`, `apps/api/src/workspaces.ts`, `apps/web/app/layout.tsx`, `apps/web/app/workspaces/[id]/page.tsx`, `docs/GAUNTLET_LOG.md`, `docs/WORKSTREAMS.md`, `docs/DECISIONS.md`.
+**Regressions**: None.
+**Blockers**: None.
