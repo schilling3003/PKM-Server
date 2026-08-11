@@ -431,3 +431,25 @@ clean shutdown.
 **Decisive gap**: None.
 **Regressions**: None.
 **Blockers**: None.
+
+## Round 1.15 — Workstream 8: Ask UI and AI-proposed diff/approval flow
+
+**Date**: 2026-08-11
+**Builder**: Devin (child session `devin-2a01ffba747a465383b06aacc7301ec7`)
+**Branch**: `devin/pkm-v1-ask-diff`
+**Verdict**: Implemented and merged.
+- Added workspace-scoped Ask page at `/workspaces/[id]/ask` with grounded-question input, `POST /workspaces/:id/ask`, `react-markdown` answer rendering, numbered citations linking back to the editor, and warning display.
+- Added `Ctrl/Cmd+Shift+A` shortcut and `Ask` button on the workspace page.
+- Added backend `POST /workspaces/:id/propose` (`apps/api/src/propose.ts`) that resolves the target note by `documentId` or `path`, gathers workspace-scoped context via `hybridSearch`, and calls `generateAnswer` with a structured JSON prompt returning `{ path, content, explanation }`.
+- Added frontend diff/preview page at `/workspaces/[id]/diff` with original/proposed side-by-side, explanation, citations, `Apply` (calls `PUT /workspaces/:id/documents/:id`), and `Reject`. Canonical Markdown is not mutated without explicit approval.
+- Added `proposeEdit` and shared `Citation`/`ProposedEdit` types to `apps/web/lib/api.ts`.
+- Added `apps/api/test/propose.test.ts` covering valid proposal, path resolution, workspace isolation, prompt-injection guardrail text, invalid JSON, path-traversal rejection, and input validation.
+- Wired `/propose` into the `/ask` rate-limit bucket in `apps/api/src/auth.ts`.
+- Documented the design in `docs/DECISIONS.md` AD-021.
+- Merged into `devin/pkm-v1-search-ai` with a minimal conflict-resolution in `apps/web/app/workspaces/[id]/page.tsx` to keep both the OKF and Ask/Propose navigation buttons.
+
+**Evidence**: `pnpm -r typecheck`, `pnpm -r lint`, `pnpm -r test`, `pnpm -r build` pass; `pnpm audit --prod` clean; Next.js emits `/workspaces/[id]/ask` and `/workspaces/[id]/diff`; `curl` smoke authenticated to `POST /workspaces/:id/ask` (200) and `POST /workspaces/:id/propose` (422 without a local LLM, proving route wired).
+**Decisive gap**: None.
+**Changes**: `apps/api/src/propose.ts`, `apps/api/src/app.ts`, `apps/api/src/auth.ts`, `apps/api/test/propose.test.ts`, `apps/web/lib/api.ts`, `apps/web/app/workspaces/[id]/ask/page.tsx`, `apps/web/app/workspaces/[id]/diff/page.tsx`, `apps/web/app/workspaces/[id]/page.tsx`, `docs/DECISIONS.md`, `docs/WORKSTREAMS.md`, `docs/GAUNTLET_LOG.md`.
+**Regressions**: None.
+**Blockers**: None.

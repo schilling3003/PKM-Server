@@ -35,9 +35,16 @@ export interface SearchResult extends Document {
   score?: number;
 }
 
+export interface Citation {
+  id: string;
+  path: string;
+  title: string | null;
+  snippet: string;
+}
+
 export interface AskResult {
   answer: string;
-  citations: { id: string; path: string; title: string | null; snippet: string }[];
+  citations: Citation[];
   warning?: string;
 }
 
@@ -208,6 +215,27 @@ export async function askWorkspace(workspaceId: string, question: string): Promi
     body: JSON.stringify({ question }),
   });
   return handleResponse<AskResult>(res);
+}
+
+export interface ProposedEdit {
+  originalPath: string;
+  proposedPath: string;
+  originalContent: string;
+  proposedContent: string;
+  explanation: string;
+  citations: Citation[];
+}
+
+export async function proposeEdit(
+  workspaceId: string,
+  request: { instruction: string; documentId?: string; path?: string }
+): Promise<ProposedEdit> {
+  const res = await fetch(`${API_BASE}/workspaces/${workspaceId}/propose`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(request),
+  });
+  return handleResponse<ProposedEdit>(res);
 }
 
 export interface GraphNode {

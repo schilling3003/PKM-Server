@@ -273,7 +273,7 @@ export async function registerAuthRoutes(
       return;
     }
 
-    if (parts[0] === 'workspaces' && parts[2] && (parts[2] === 'search' || parts[2] === 'ask')) {
+    if (parts[0] === 'workspaces' && parts[2] && (parts[2] === 'search' || parts[2] === 'ask' || parts[2] === 'propose')) {
       // The previous auth/membership hook must have set request.user.
       if (!request.user) return;
 

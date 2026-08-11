@@ -258,6 +258,8 @@ async function main() {
       routes = [
         { route: '/', label: 'workspace-list' },
         { route: `/workspaces/${workspaceId}`, label: 'editor' },
+        { route: `/workspaces/${workspaceId}/ask`, label: 'ask' },
+        { route: `/workspaces/${workspaceId}/diff`, label: 'diff' },
         { route: `/workspaces/${workspaceId}/attachments`, label: 'attachments' },
         { route: `/workspaces/${workspaceId}/graph`, label: 'graph' },
         { route: `/workspaces/${workspaceId}/okf`, label: 'okf' },
