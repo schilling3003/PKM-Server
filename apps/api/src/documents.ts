@@ -107,6 +107,7 @@ export async function createDocument(
     const document = rows[0];
     await insertRevision(client, document.id, canonicalContent, hash);
     await syncLinks(client, workspaceId, document.id, canonicalContent);
+    await resolveBacklinks(client, workspaceId, document.id, document.path);
     await syncChunks(client, workspaceId, document.id, chunks, chunkEmbeddings, hash);
     return document;
   });
@@ -155,6 +156,7 @@ export async function updateDocument(
       await insertRevision(client, documentId, existing.content, oldHash);
     }
     await syncLinks(client, workspaceId, documentId, canonicalContent);
+    await resolveBacklinks(client, workspaceId, documentId, document.path);
     await syncChunks(client, workspaceId, documentId, chunks, chunkEmbeddings, hash);
     return document;
   });
@@ -169,8 +171,7 @@ export async function getBacklinks(workspaceId: string, documentId: string) {
     `SELECT s.id, s.path, s.title
      FROM documents s
      JOIN document_links l ON l.source_document_id = s.id
-     JOIN documents t ON t.id = l.target_document_id
-     WHERE t.workspace_id = $1 AND t.id = $2`,
+     WHERE l.workspace_id = $1 AND l.target_document_id = $2`,
     [workspaceId, documentId]
   );
   return rows;
@@ -178,9 +179,12 @@ export async function getBacklinks(workspaceId: string, documentId: string) {
 
 export async function getOutgoingLinks(workspaceId: string, documentId: string) {
   const { rows } = await pool.query(
-    `SELECT d.id, d.path, d.title, l.link_type
+    `SELECT coalesce(d.id, l.target_document_id) AS id,
+            l.target_path AS path,
+            coalesce(d.title, l.target_path) AS title,
+            l.link_type
      FROM document_links l
-     JOIN documents d ON d.id = l.target_document_id
+     LEFT JOIN documents d ON d.id = l.target_document_id
      WHERE l.workspace_id = $1 AND l.source_document_id = $2`,
     [workspaceId, documentId]
   );
@@ -224,6 +228,15 @@ async function syncLinks(client: PoolClient, workspaceId: string, documentId: st
       [workspaceId, documentId, targetId, targetPath, meta.type]
     );
   }
+}
+
+async function resolveBacklinks(client: PoolClient, workspaceId: string, documentId: string, path: string) {
+  await client.query(
+    `UPDATE document_links
+     SET target_document_id = $1
+     WHERE workspace_id = $2 AND target_path = $3 AND target_document_id IS NULL`,
+    [documentId, workspaceId, path]
+  );
 }
 
 async function syncChunks(
