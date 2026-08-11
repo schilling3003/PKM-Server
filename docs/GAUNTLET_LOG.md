@@ -295,3 +295,17 @@ clean shutdown.
 **Changes**: `apps/web/app/workspaces/[id]/page.tsx`, `docs/TEST_REPORT.md`, `docs/GAUNTLET_LOG.md`.
 **Regressions**: None.
 **Blockers**: None.
+
+## Round 1.8 — Archive state fix and round 1.7 end-to-end tester integration
+
+**Date**: 2026-08-11
+**Coordinator**: Devin
+**Verdict**: Fixed the `Show archived` invisible-toggle bug found by the round 1.7 end-to-end tester and merged the fresh test report.
+- **`handleArchive` now preserves the archived row in the local `documents` array**: `apps/web/app/workspaces/[id]/page.tsx` maps the archived `Document` returned by `archiveDocument` over the matching entry and re-sorts by path. Previously it filtered the note out, so the `Show archived` toggle (which only renders when `documents.some((d) => d.archived_at)` is true) was invisible until reload.
+- **Merged `devin/pkm-v1-tester-round-1-7`**: incorporated `docs/TEST_REPORT_round_1_7.md` and the updated `.devin/skills/testing-pkm-search-ai/SKILL.md` notes about `env NEXT_BUILD_OUTPUT= pnpm --filter @pkm/web start` and keyboard fallback for small sidebar buttons.
+- **Re-verified**: `pnpm -r typecheck/lint/test/build` pass; `pnpm audit --prod` clean; Docker Compose stack healthy; API and AI `/health` return `ok`.
+**Evidence**: `apps/web/app/workspaces/[id]/page.tsx` now updates `documents` with `prev.map(doc => doc.id === target.id ? d : doc)` after `archiveDocument` resolves; the round-1.7 test report records `restore` with no duplicate archived row and all golden-path/API checks passing.
+**Decisive gap**: A real pointer-device check of small sidebar/archive/restore hit targets is still needed to confirm whether the harness-only mouse-click issue is reproducible outside the automated harness. Workstream 20 (accessibility/keyboard polish) is addressing hit-area and keyboard-operability improvements.
+**Changes**: `apps/web/app/workspaces/[id]/page.tsx`, `docs/TEST_REPORT_round_1_7.md`, `.devin/skills/testing-pkm-search-ai/SKILL.md`, `docs/GAUNTLET_LOG.md`.
+**Regressions**: None.
+**Blockers**: None.
