@@ -1,5 +1,6 @@
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
+import { OkfValidationError } from '@pkm/okf';
 import { z } from 'zod';
 import './middleware/auth.js';
 import * as workspaces from './workspaces.js';
@@ -94,7 +95,11 @@ export async function buildApp(options: { logger?: boolean } = {}) {
     const { workspaceId } = req.params as { workspaceId: string };
     const { q, limit = '20' } = req.query as { q?: string; limit?: string };
     if (!q) return reply.status(400).send({ error: 'Query parameter q is required' });
-    return search.hybridSearch(workspaceId, q, Number(limit));
+    const limitNum = Number(limit);
+    if (!Number.isInteger(limitNum) || limitNum < 1 || limitNum > 100) {
+      return reply.status(400).send({ error: 'Query parameter limit must be an integer between 1 and 100' });
+    }
+    return search.hybridSearch(workspaceId, q, limitNum);
   });
 
   app.post('/workspaces/:workspaceId/ask', async (req, reply) => {
@@ -131,6 +136,9 @@ export async function buildApp(options: { logger?: boolean } = {}) {
     app.log.error(err);
     if (err instanceof z.ZodError) {
       return reply.status(400).send({ error: 'Validation error', details: err.errors });
+    }
+    if (err instanceof OkfValidationError) {
+      return reply.status(400).send({ error: err.message });
     }
     reply.status(500).send({ error: 'Internal server error' });
   });

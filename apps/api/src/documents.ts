@@ -1,4 +1,5 @@
 import { parseCanonical, serializeCanonical, extractWikiLinks, extractStandardLinks, hashContent } from '@pkm/markdown';
+import { isReservedFilename, OkfValidationError } from '@pkm/okf';
 import { toSql } from 'pgvector/utils';
 import type { PoolClient } from 'pg';
 import { pool } from './db.js';
@@ -19,6 +20,12 @@ export interface DocumentRow {
 function normalizePath(path: string): string {
   if (!path.endsWith('.md')) return `${path}.md`;
   return path;
+}
+
+function assertConceptPath(path: string, allowReserved = false) {
+  if (!allowReserved && isReservedFilename(path)) {
+    throw new OkfValidationError(path, 'reserved filename cannot be used for a concept');
+  }
 }
 
 function computeTitle(frontmatter: Record<string, unknown>, fallback: string): string {
@@ -79,9 +86,11 @@ export async function getRevision(workspaceId: string, documentId: string, revis
 export async function createDocument(
   workspaceId: string,
   path: string,
-  content: string
+  content: string,
+  options: { allowReserved?: boolean } = {}
 ): Promise<DocumentRow> {
   const normalized = normalizePath(path);
+  assertConceptPath(normalized, options.allowReserved);
   const parsed = parseCanonical(content);
   const hash = parsed.hash;
   const title = computeTitle(parsed.frontmatter, normalized);
@@ -116,7 +125,8 @@ export async function createDocument(
 export async function updateDocument(
   workspaceId: string,
   documentId: string,
-  updates: { path?: string; content?: string }
+  updates: { path?: string; content?: string },
+  options: { allowReserved?: boolean } = {}
 ): Promise<DocumentRow> {
   const existing = await getDocument(workspaceId, documentId);
   if (!existing) throw new Error('Document not found');
@@ -125,6 +135,10 @@ export async function updateDocument(
   const parsed = parseCanonical(content);
   const hash = parsed.hash;
   const title = computeTitle(parsed.frontmatter, updates.path ?? existing.path);
+
+  if (updates.path) {
+    assertConceptPath(normalizePath(updates.path), options.allowReserved);
+  }
 
   if (!parsed.frontmatter.type) {
     parsed.frontmatter.type = 'Note';
@@ -150,6 +164,13 @@ export async function updateDocument(
     );
     const document = rows[0];
     if (!document) throw new Error('Document not found');
+
+    if (updates.path && existing.path !== newPath) {
+      await client.query(
+        'UPDATE document_links SET target_path = $1 WHERE workspace_id = $2 AND target_document_id = $3',
+        [newPath, workspaceId, documentId]
+      );
+    }
 
     if (existing.content !== canonicalContent) {
       const oldHash = hashContent(existing.content);

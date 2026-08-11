@@ -59,16 +59,36 @@ function MarkdownLink({ node: _node, href, children, ...props }: MarkdownLinkPro
     return <span {...props}>{children}</span>;
   }
 
-  const isExternal = /^[a-z][a-z0-9+.-]*:/i.test(href) || href.startsWith('//');
+  const allowedScheme = /^(https?|mailto|tel):/i.test(href);
+  const isExternal = allowedScheme || href.startsWith('//');
+  const hasScheme = /^[a-z][a-z0-9+.-]*:/i.test(href);
   if (!href.endsWith('.md') || isExternal) {
+    if (isExternal) {
+      return (
+        <a
+          href={href}
+          className="text-primary underline hover:text-primary/80"
+          target="_blank"
+          rel="noopener noreferrer"
+          {...props}
+        >
+          {children}
+        </a>
+      );
+    }
+    if (hasScheme) {
+      return (
+        <span
+          className="border-b border-dashed border-destructive/50 text-destructive"
+          title={`Unsupported link: ${href}`}
+          {...props}
+        >
+          {children}
+        </span>
+      );
+    }
     return (
-      <a
-        href={href}
-        className="text-primary underline hover:text-primary/80"
-        target="_blank"
-        rel="noopener noreferrer"
-        {...props}
-      >
+      <a href={href} className="text-primary underline hover:text-primary/80" {...props}>
         {children}
       </a>
     );
@@ -314,6 +334,7 @@ export default function WorkspacePage() {
       const body = textareaRef.current?.value ?? content;
       const updated = await updateDocument(workspaceId, doc.id, { content: body });
       setDoc(updated);
+      setContent(updated.content);
       setDocuments((prev) =>
         prev
           .map((d) => (d.id === updated.id ? updated : d))

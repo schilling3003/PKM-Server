@@ -17,19 +17,31 @@ const importConceptSchema = z.object({
     .optional(),
 });
 
+const reservedEntrySchema = z.object({
+  path: z.string().min(1),
+  content: z.string().default(''),
+});
+
 const importBundleSchema = z.object({
   version: z.string().optional(),
+  okfVersion: z.string().optional(),
   workspace: z.string().optional(),
   id: z.string().optional(),
   timestamp: z.string().optional(),
   concepts: z.array(importConceptSchema).default([]),
-  indices: z.array(z.unknown()).optional(),
-  logs: z.array(z.unknown()).optional(),
+  indices: z.array(z.union([reservedEntrySchema, z.unknown()])).default([]),
+  logs: z.array(z.union([reservedEntrySchema, z.unknown()])).default([]),
 });
 
 export interface ImportResult {
   imported: number;
   concepts: documents.DocumentRow[];
+}
+
+function isReservedEntry(value: unknown): value is { path: string; content: string } {
+  if (typeof value !== 'object' || value === null) return false;
+  const v = value as Record<string, unknown>;
+  return typeof v.path === 'string' && typeof v.content === 'string';
 }
 
 export async function importOkf(workspaceId: string, payload: unknown): Promise<ImportResult> {
@@ -61,7 +73,26 @@ export async function importOkf(workspaceId: string, payload: unknown): Promise<
     }
   }
 
+  // Reserved filenames are stored as documents but exported/imported as bundle-level
+  // indices/logs so a workspace can round-trip without semantic loss.
+  for (const item of [...bundle.indices, ...bundle.logs]) {
+    if (!isReservedEntry(item)) continue;
+    const existing = await documents.getDocumentByPath(workspaceId, item.path);
+    if (existing) {
+      const updated = await documents.updateDocument(workspaceId, existing.id, { content: item.content }, { allowReserved: true });
+      results.push(updated);
+    } else {
+      const created = await documents.createDocument(workspaceId, item.path, item.content, { allowReserved: true });
+      results.push(created);
+    }
+  }
+
   return { imported: results.length, concepts: results };
+}
+
+export interface ReservedExportEntry {
+  path: string;
+  content: string;
 }
 
 export interface ExportConcept {
@@ -76,12 +107,13 @@ export interface ExportConcept {
 
 export interface ExportBundle {
   version: string;
+  okfVersion: string;
   workspace: string;
   id: string;
   timestamp: string;
   concepts: ExportConcept[];
-  indices: unknown[];
-  logs: unknown[];
+  indices: ReservedExportEntry[];
+  logs: ReservedExportEntry[];
 }
 
 export async function exportOkf(workspaceId: string): Promise<ExportBundle> {
@@ -89,10 +121,23 @@ export async function exportOkf(workspaceId: string): Promise<ExportBundle> {
   const wsName = ws?.name ?? workspaceId;
   const docs = await documents.getWorkspaceDocuments(workspaceId);
 
-  const concepts: ExportConcept[] = docs.map((doc) => {
+  const concepts: ExportConcept[] = [];
+  const indices: ReservedExportEntry[] = [];
+  const logs: ReservedExportEntry[] = [];
+
+  for (const doc of docs) {
+    if (isReservedFilename(doc.path)) {
+      if (doc.path.endsWith('index.md')) {
+        indices.push({ path: doc.path, content: doc.content });
+      } else if (doc.path.endsWith('log.md')) {
+        logs.push({ path: doc.path, content: doc.content });
+      }
+      continue;
+    }
+
     const parsed = parseCanonical(doc.content);
     const body = standardToWiki(parsed.body);
-    return {
+    concepts.push({
       id: doc.path.replace(/\.md$/, ''),
       path: doc.path,
       metadata: parsed.frontmatter,
@@ -100,16 +145,17 @@ export async function exportOkf(workspaceId: string): Promise<ExportBundle> {
         frontmatter: parsed.frontmatter,
         body,
       },
-    };
-  });
+    });
+  }
 
   return {
     version: OKF_VERSION,
+    okfVersion: OKF_VERSION,
     workspace: wsName,
     id: randomUUID(),
     timestamp: new Date().toISOString(),
     concepts,
-    indices: [],
-    logs: [],
+    indices,
+    logs,
   };
 }
