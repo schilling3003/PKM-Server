@@ -12,8 +12,8 @@
 | 6 | Semantic search, embeddings, vector retrieval | coordinator | done | 1, 2 |
 | 7 | Grounded AI answers, citations, abstention, diff editing | coordinator | done | 1, 6 |
 | 8 | Collaboration, presence, reconnects, conflicts, concurrent edits | unassigned | planned | 2, 3 |
-| 9 | Authentication, workspace membership, authorization, isolation | child-auth | done | — |
-| 10 | Attachments, safe rendering, imports, exports, migration | child-attachments | in_progress | 1, 9 |
+| 9 | Authentication, workspace membership, authorization, isolation | child-auth (`devin/pkm-v1-auth`) | done | — |
+| 10 | Attachments, safe rendering, imports, exports, migration | child-attachments (`devin/pkm-v1-attachments`) | done | 1, 9 |
 | 11 | Responsive design, accessibility, theming, search UI, quick switcher | child-webui (`devin/pkm-v1-search-theme`) | done | 3, 4 |
 | 12 | Performance, resilience, rate limiting, observability, backups | unassigned | planned | all |
 | 13 | Supply-chain security, privacy, threat model, abuse cases | unassigned | planned | 9, 10 |
@@ -23,16 +23,16 @@
 
 - Canonical Markdown and YAML frontmatter schema: `packages/shared`.
 - OpenAPI/tRPC API contracts: `packages/shared`.
-- Database migrations in `apps/api/src/migrations` (coordinator owned; builders must not create conflicting `0004_*` files).
+- Database migrations in `apps/api/src/migrations` (coordinator owned).
 - Docker Compose local stack: root `docker-compose.yml` (coordinator owned).
 
-## Current Parallel Builders
+## Recently Completed Builders
 
-| Session | Branch | Workstream | Exclusive ownership | Must not touch |
-|---------|--------|------------|---------------------|----------------|
-| child-auth | `devin/pkm-v1-auth` | 9 (done) | `apps/api/src/auth.ts`, `apps/api/src/middleware/auth.ts`, `apps/api/src/migrations/0004_auth.sql`, `apps/web/app/login/page.tsx`, `apps/web/lib/auth.ts`, `apps/web/middleware.ts`, `apps/web/components/UserNav.tsx` | `apps/api/src/app.ts`, `apps/web/app/workspaces/[id]/page.tsx`, `apps/web/app/page.tsx`, `apps/web/app/layout.tsx`, `apps/web/lib/api.ts` |
-| child-attachments | `devin/pkm-v1-attachments` | 10 | `apps/api/src/attachments.ts`, `apps/api/src/migrations/0005_attachments.sql`, `apps/web/app/workspaces/[id]/attachments/page.tsx`, `apps/web/lib/attachments.ts`, `apps/web/components/AttachmentUpload.tsx` | `apps/api/src/app.ts`, `apps/web/app/workspaces/[id]/page.tsx`, `apps/web/app/page.tsx`, `apps/web/app/layout.tsx`, `apps/web/lib/api.ts` |
-| child-webui | `devin/pkm-v1-search-theme` | 5 & 11 | `apps/web/components/SearchPalette.tsx`, `apps/web/components/CommandPalette.tsx`, `apps/web/hooks/useSearch.ts`, `apps/web/app/workspaces/[id]/page.tsx` (search integration only), `apps/web/app/globals.css` (theme tokens), `apps/web/app/layout.tsx` (theme class) | `apps/api/*` except route registration helpers, `apps/web/lib/api.ts` (may read but not edit), `apps/web/app/login/*` |
+| Session | Branch | Workstream | Integration notes |
+|---------|--------|------------|-------------------|
+| child-auth | `devin/pkm-v1-auth` | 9 | Adds `users`, `workspace_members`, signed-cookie auth, login page, and membership middleware. Coordinator must wire `requireAuth` into `buildApp` and `UserNav` into layout. |
+| child-attachments | `devin/pkm-v1-attachments` | 10 | Adds MinIO-backed attachments table, upload/list/download/delete routes, and `/workspaces/:id/attachments` page. Coordinator must wire `registerAttachmentRoutes` into `buildApp`. |
+| child-webui | `devin/pkm-v1-search-theme` | 5 & 11 | Adds search palette, quick switcher, theme toggle/provider, and responsive workspace layout. Already integrated into `workspaces/[id]/page.tsx` and `layout.tsx`. |
 
 ## Integration Order
 
