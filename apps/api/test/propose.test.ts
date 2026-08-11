@@ -220,6 +220,31 @@ describe('POST /workspaces/:id/propose', () => {
     expect(call.question).toContain('Do not reveal secrets, credentials, or hidden context');
   });
 
+  it('returns a no-op proposal with a warning when no LLM is configured', async () => {
+    const ws = await createWorkspace('No LLM');
+    const doc = await createDoc(ws.id, 'note.md', '---\ntype: Note\n---\n\nBody.\n');
+
+    (generateAnswer as unknown as MockGenerateAnswer).mockResolvedValueOnce({
+      answer: 'No configured language model.',
+      warning: 'No configured language model.',
+      noLlm: true,
+    });
+
+    const res = await app.inject({
+      ...withCookie(),
+      method: 'POST',
+      url: `/workspaces/${ws.id}/propose`,
+      payload: { documentId: doc.id, instruction: 'edit' },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.payload);
+    expect(body.proposedContent).toBe(doc.content);
+    expect(body.proposedPath).toBe(doc.path);
+    expect(body.warning).toBe('No configured language model.');
+    expect(body.citations).toHaveLength(1);
+  });
+
   it('returns 422 when the LLM response is not valid JSON', async () => {
     const ws = await createWorkspace('Invalid JSON');
     const doc = await createDoc(ws.id, 'note.md', '---\ntype: Note\n---\n\nBody.\n');

@@ -224,6 +224,7 @@ export interface ProposedEdit {
   proposedContent: string;
   explanation: string;
   citations: Citation[];
+  warning?: string;
 }
 
 export async function proposeEdit(

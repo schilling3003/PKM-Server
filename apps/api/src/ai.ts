@@ -24,7 +24,13 @@ export async function embed(text: string): Promise<number[]> {
   return data.embedding;
 }
 
-export async function generateAnswer(params: { context: string; question: string }): Promise<{ answer: string }> {
+export interface GenerateAnswerResult {
+  answer: string;
+  warning?: string;
+  noLlm?: boolean;
+}
+
+export async function generateAnswer(params: { context: string; question: string }): Promise<GenerateAnswerResult> {
   const res = await fetch(`${aiUrl}/ask`, {
     method: 'POST',
     headers: aiHeaders(),
@@ -33,6 +39,6 @@ export async function generateAnswer(params: { context: string; question: string
   if (!res.ok) {
     throw new Error(`AI ask failed: ${res.status} ${await res.text()}`);
   }
-  const data = (await res.json()) as { answer: string };
+  const data = (await res.json()) as GenerateAnswerResult;
   return data;
 }

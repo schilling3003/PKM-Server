@@ -453,3 +453,23 @@ clean shutdown.
 **Changes**: `apps/api/src/propose.ts`, `apps/api/src/app.ts`, `apps/api/src/auth.ts`, `apps/api/test/propose.test.ts`, `apps/web/lib/api.ts`, `apps/web/app/workspaces/[id]/ask/page.tsx`, `apps/web/app/workspaces/[id]/diff/page.tsx`, `apps/web/app/workspaces/[id]/page.tsx`, `docs/DECISIONS.md`, `docs/WORKSTREAMS.md`, `docs/GAUNTLET_LOG.md`.
 **Regressions**: None.
 **Blockers**: None.
+
+## Round 1.16 — Propose no-LLM fallback and final v2 test report integration
+
+**Date**: 2026-08-11
+**Coordinator**: Devin
+**Verdict**: Propose now degrades gracefully without an external LLM; final v2 test report merged.
+- Merged `devin/pkm-v1-tester-final-v2` into `devin/pkm-v1-search-ai`, adding `docs/TEST_REPORT_final_v2.md`.
+- Updated `apps/ai/src/main.py` `AskResponse` to include `warning` and `no_llm` fields when no LLM is configured.
+- Updated `apps/api/src/ai.ts` to return `warning` and `noLlm` from `generateAnswer`.
+- Updated `apps/api/src/ask.ts` to surface the LLM warning in `AskResult`.
+- Updated `apps/api/src/propose.ts` to return a no-op `ProposedEdit` with a `warning` instead of a `422` JSON parse error when no LLM is configured.
+- Updated `apps/web/lib/api.ts` and `apps/web/app/workspaces/[id]/diff/page.tsx` to display the warning banner and disable `Apply` when there are no proposed changes.
+- Added `apps/api/test/propose.test.ts` coverage for the no-LLM fallback.
+- Updated `.devin/skills/testing-pkm-search-ai/SKILL.md` with OKF payload shape, LLM stub instructions, axe variables, and harness click fallbacks.
+
+**Evidence**: `pnpm -r typecheck`, `pnpm -r lint`, `pnpm -r test`, `pnpm -r build` pass; `pnpm audit --prod` clean; `RUN_RESILIENCE_TESTS=1 pnpm --filter @pkm/api test test/resilience.test.ts` passes 6/6.
+**Decisive gap**: None.
+**Changes**: `apps/ai/src/main.py`, `apps/api/src/ai.ts`, `apps/api/src/ask.ts`, `apps/api/src/propose.ts`, `apps/api/test/propose.test.ts`, `apps/web/lib/api.ts`, `apps/web/app/workspaces/[id]/diff/page.tsx`, `.devin/skills/testing-pkm-search-ai/SKILL.md`, `docs/TEST_REPORT_final_v2.md`, `docs/WORKSTREAMS.md`, `docs/GAUNTLET_LOG.md`.
+**Regressions**: None.
+**Blockers**: Awaiting the fresh final critic (`devin-a5c8953b2a574861bce737ec7621ed5e`) for a binary PASS/FAIL verdict.

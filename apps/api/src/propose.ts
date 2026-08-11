@@ -1,7 +1,7 @@
 import { parseCanonical } from '@pkm/markdown';
 import { getDocument, getDocumentByPath, updateDocument, type DocumentRow } from './documents.js';
 import { hybridSearch } from './search.js';
-import { generateAnswer } from './ai.js';
+import { generateAnswer, type GenerateAnswerResult } from './ai.js';
 
 export interface Citation {
   id: string;
@@ -17,6 +17,7 @@ export interface ProposedEdit {
   proposedContent: string;
   explanation: string;
   citations: Citation[];
+  warning?: string;
 }
 
 interface ProposeRequest {
@@ -85,6 +86,34 @@ function buildQuestion(instruction: string, originalPath: string): string {
   ].join('\n');
 }
 
+function buildCitations(
+  target: DocumentRow,
+  searchResults: Awaited<ReturnType<typeof hybridSearch>>
+): Citation[] {
+  const citationIds = new Set<string>([target.id]);
+  const citations: Citation[] = [
+    {
+      id: target.id,
+      path: target.path,
+      title: target.title,
+      snippet: truncate(target.content, MAX_SNIPPET_CHARS),
+    },
+  ];
+
+  for (const r of searchResults) {
+    if (citationIds.has(r.id)) continue;
+    citationIds.add(r.id);
+    citations.push({
+      id: r.id,
+      path: r.path,
+      title: r.title,
+      snippet: truncate(r.content, MAX_SNIPPET_CHARS),
+    });
+  }
+
+  return citations;
+}
+
 export async function proposeEdit(workspaceId: string, request: ProposeRequest): Promise<ProposedEdit> {
   const { instruction, documentId, path } = request;
 
@@ -117,12 +146,13 @@ export async function proposeEdit(workspaceId: string, request: ProposeRequest):
   // Gather workspace-scoped context. The search query is the instruction so
   // the model can find related notes in the same workspace.
   const searchResults = await hybridSearch(workspaceId, instruction, MAX_SEARCH_RESULTS + 1);
+  const citations = buildCitations(target, searchResults);
   const context = buildContext(target, searchResults);
   const question = buildQuestion(instruction, originalPath);
 
-  let answer: string;
+  let data: GenerateAnswerResult;
   try {
-    answer = (await generateAnswer({ context, question })).answer;
+    data = await generateAnswer({ context, question });
   } catch (err) {
     const error = new Error(
       err instanceof Error ? `AI service unavailable: ${err.message}` : 'AI service unavailable'
@@ -131,7 +161,20 @@ export async function proposeEdit(workspaceId: string, request: ProposeRequest):
     throw error;
   }
 
-  const jsonText = extractJson(answer);
+  if (data.noLlm || data.warning) {
+    const warning = data.warning ?? 'No configured language model.';
+    return {
+      originalPath,
+      proposedPath: originalPath,
+      originalContent,
+      proposedContent: originalContent,
+      explanation: data.answer,
+      citations,
+      warning,
+    };
+  }
+
+  const jsonText = extractJson(data.answer);
   if (!jsonText) {
     const error = new Error('AI response did not contain a JSON object') as Error & { statusCode?: number };
     error.statusCode = 422;
@@ -176,29 +219,6 @@ export async function proposeEdit(workspaceId: string, request: ProposeRequest):
     const error = new Error('Proposed path is not allowed') as Error & { statusCode?: number };
     error.statusCode = 400;
     throw error;
-  }
-
-  // Build citations from the target note and any related workspace notes used
-  // as context. All IDs are filtered to the current workspace by construction.
-  const citationIds = new Set<string>([target.id]);
-  const citations: Citation[] = [
-    {
-      id: target.id,
-      path: target.path,
-      title: target.title,
-      snippet: truncate(target.content, MAX_SNIPPET_CHARS),
-    },
-  ];
-
-  for (const r of searchResults) {
-    if (citationIds.has(r.id)) continue;
-    citationIds.add(r.id);
-    citations.push({
-      id: r.id,
-      path: r.path,
-      title: r.title,
-      snippet: truncate(r.content, MAX_SNIPPET_CHARS),
-    });
   }
 
   return {
