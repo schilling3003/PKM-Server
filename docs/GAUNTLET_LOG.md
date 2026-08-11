@@ -87,3 +87,20 @@ clean shutdown.
 **Changes**: `apps/api/src/app.ts`, `apps/api/src/auth.ts`, `apps/api/src/attachments.ts`, `apps/api/test/auth.test.ts`, `apps/api/test/integration.test.ts`, `apps/api/test/attachments.test.ts`, `.github/workflows/ci.yml`, `docs/WORKSTREAMS.md`, `docs/GAUNTLET_LOG.md`.
 **Regressions**: None.
 **Blockers**: None.
+
+## Round 0.5 — Critic review after security fixes
+
+**Date**: 2026-08-11
+**Critic**: Devin Gauntlet critic
+**Branch reviewed**: `devin/pkm-v1-search-ai`
+**Verdict**: **FAIL** — not releasable.
+**Evidence**: `pnpm -r build`, `pnpm -r typecheck`, `pnpm -r lint`, and `pnpm -r test` pass; Docker Compose stack healthy; `curl` and browser verified register/login, workspace creation, document CRUD, backlinks, search, `/ask`, OKF round-trip with `index.md`/`log.md`, and attachments with workspace isolation.
+**Decisive gaps**:
+1. **Logout does not invalidate the session server-side** (`apps/api/src/auth.ts:92-99`). After `POST /auth/logout`, the same signed cookie still returns `200 OK` from `/workspaces`.
+2. **Login/Register redirect to a 404** (`apps/web/app/login/page.tsx:25`). On success the UI pushes `/workspaces`, which has no route.
+3. **Attachment validation trusts extension/content-type** (`apps/api/src/attachments.ts:52-111`), accepting HTML disguised as `.txt` and serving it inline from MinIO.
+4. **YAML frontmatter parsing has no alias/length limits** (`packages/markdown/src/parser.ts:34`), allowing billion-laughs-style expansion.
+5. Remaining `SECURITY_REVIEW.md` high findings: signed user-ID cookie with weak fallback, no rate limiting, no CSP/security headers, unauthenticated `/health` disclosure, prompt injection in `/ask`, and unauthenticated AI service.
+**Changes**: None (critic-only round).
+**Regressions**: None.
+**Blockers**: RB-1 (server-side logout), RB-2 (login redirect 404), RB-3 (attachment validation), RB-4 (YAML limits), plus unresolved high-severity security findings.
