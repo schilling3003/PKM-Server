@@ -25,6 +25,7 @@
 | 19 | Performance, resilience, and recovery tests (100k note, 10k workspace, restart, failed indexing) | child-perf (`devin/pkm-v1-perf`) | done (merged) | all |
 | 20 | Accessibility audit and keyboard navigation polish | child-a11y (`devin/pkm-v1-a11y`) | done (merged) | 3, 4, 11 |
 | 21 | Final Gauntlet integration, clean checkout reproducibility, and PR readiness | coordinator | done (gates passed; final critic pending) | all |
+| 22 | OKF import/export UI | devin/pkm-v1-okf-ui | done | 10 |
 
 ## Shared Contracts
 

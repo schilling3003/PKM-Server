@@ -227,3 +227,68 @@ export interface GraphData {
   nodes: GraphNode[];
   edges: GraphEdge[];
 }
+
+export interface OkfImportResult {
+  imported: number;
+}
+
+export async function exportOkf(workspaceId: string): Promise<Blob> {
+  const res = await fetch(`${API_BASE}/workspaces/${workspaceId}/okf/export`);
+  if (!res.ok) {
+    let text = '';
+    try {
+      text = await res.text();
+    } catch {
+      text = 'Unknown error';
+    }
+    throw new ApiError(text || `Request failed with ${res.status}`, res.status);
+  }
+  return res.blob();
+}
+
+export async function importOkf(workspaceId: string, file: File): Promise<OkfImportResult> {
+  let text: string;
+  try {
+    text = await file.text();
+  } catch {
+    throw new Error('Could not read the selected file');
+  }
+
+  let bundle: unknown;
+  try {
+    bundle = JSON.parse(text);
+  } catch {
+    throw new Error('The selected file is not valid JSON');
+  }
+
+  if (
+    !bundle ||
+    typeof bundle !== 'object' ||
+    !Array.isArray((bundle as Record<string, unknown>).concepts) ||
+    (bundle as Record<string, unknown[]>).concepts.length === 0
+  ) {
+    throw new Error('The selected file is not a valid OKF bundle: concepts array must be non-empty');
+  }
+
+  const res = await fetch(`${API_BASE}/workspaces/${workspaceId}/okf/import`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: text,
+  });
+
+  try {
+    return handleResponse<OkfImportResult>(res);
+  } catch (err) {
+    if (err instanceof ApiError) {
+      try {
+        const parsed = JSON.parse(err.message) as { error?: string } | undefined;
+        if (parsed && typeof parsed.error === 'string') {
+          throw new ApiError(parsed.error, err.status, parsed);
+        }
+      } catch {
+        // fall through to the original error
+      }
+    }
+    throw err;
+  }
+}

@@ -380,3 +380,20 @@ clean shutdown.
 **Decisive gap**: None.
 **Regressions**: None.
 **Blockers**: Awaiting the fresh final critic (`devin-6eca8b3f30094479b4b23830324d6ced`) for a binary PASS/FAIL verdict.
+
+## Round 1.12 — OKF import/export UI
+
+**Date**: 2026-08-11
+**Builder**: Devin
+**Branch**: `devin/pkm-v1-okf-ui`
+**Verdict**: Implemented and verified.
+- Added `exportOkf` and `importOkf` client helpers to `apps/web/lib/api.ts`.
+- Added `/workspaces/[id]/okf` page with Export (download JSON) and Import (file picker + validation) controls.
+- Wired an `OKF` link from the workspace editor header.
+- Included the OKF route in `apps/web/scripts/axe-audit.js` for accessibility coverage.
+- Updated `docs/WORKSTREAMS.md` workstream 22 to `done`.
+
+**Evidence**: `pnpm -r typecheck`, `pnpm -r lint`, `pnpm -r test`, and `pnpm -r build` pass; `pnpm audit --prod` reports no known vulnerabilities; `apps/web/scripts/axe-audit.js` reports no critical or serious accessibility violations on the OKF page.
+**Decisive gap**: None.
+**Regressions**: None.
+**Blockers**: None.
