@@ -13,7 +13,7 @@
 | 7 | Grounded AI answers, citations, abstention, diff editing | coordinator | done | 1, 6 |
 | 8 | Collaboration, presence, reconnects, conflicts, concurrent edits | unassigned | planned | 2, 3 |
 | 9 | Authentication, workspace membership, authorization, isolation | child-auth | in_progress | — |
-| 10 | Attachments, safe rendering, imports, exports, migration | child-attachments | in_progress | 1, 9 |
+| 10 | Attachments, safe rendering, imports, exports, migration | child-attachments | done | 1, 9 |
 | 11 | Responsive design, accessibility, theming, search UI, quick switcher | child-webui | in_progress | 3, 4 |
 | 12 | Performance, resilience, rate limiting, observability, backups | unassigned | planned | all |
 | 13 | Supply-chain security, privacy, threat model, abuse cases | unassigned | planned | 9, 10 |
