@@ -1,6 +1,8 @@
 import { parseCanonical, serializeCanonical, extractWikiLinks, extractStandardLinks, hashContent } from '@pkm/markdown';
-import type { PoolClient, QueryResultRow } from 'pg';
+import { toSql } from 'pgvector/utils';
+import type { PoolClient } from 'pg';
 import { pool } from './db.js';
+import { generateChunks, embedChunks } from './chunks.js';
 
 export interface DocumentRow {
   id: string;
@@ -24,11 +26,6 @@ function computeTitle(frontmatter: Record<string, unknown>, fallback: string): s
   if (typeof title === 'string' && title.trim()) return title.trim();
   const base = fallback.split('/').pop()?.replace(/\.md$/, '') ?? fallback;
   return base;
-}
-
-function searchVectorSql(title: string | null, body: string): string {
-  const parts = [title, body].filter(Boolean).join(' ');
-  return parts ? `to_tsvector('english', $${parts})` : `to_tsvector('english', '')`;
 }
 
 export async function getWorkspaceDocuments(workspaceId: string): Promise<DocumentRow[]> {
@@ -97,6 +94,9 @@ export async function createDocument(
     body: parsed.body,
   });
 
+  const chunks = generateChunks(parsed.body);
+  const chunkEmbeddings = await safeEmbedChunks(chunks);
+
   return await withTx(async (client) => {
     const { rows } = await client.query<DocumentRow>(
       `INSERT INTO documents (workspace_id, path, title, content, frontmatter, content_hash, search_vector)
@@ -107,6 +107,7 @@ export async function createDocument(
     const document = rows[0];
     await insertRevision(client, document.id, canonicalContent, hash);
     await syncLinks(client, workspaceId, document.id, canonicalContent);
+    await syncChunks(client, workspaceId, document.id, chunks, chunkEmbeddings, hash);
     return document;
   });
 }
@@ -132,6 +133,9 @@ export async function updateDocument(
     body: parsed.body,
   });
 
+  const chunks = generateChunks(parsed.body);
+  const chunkEmbeddings = await safeEmbedChunks(chunks);
+
   return await withTx(async (client) => {
     const newPath = updates.path ? normalizePath(updates.path) : existing.path;
     const { rows } = await client.query<DocumentRow>(
@@ -146,11 +150,12 @@ export async function updateDocument(
     const document = rows[0];
     if (!document) throw new Error('Document not found');
 
-    const oldHash = hashContent(existing.content);
-    if (oldHash !== hash) {
+    if (existing.content !== canonicalContent) {
+      const oldHash = hashContent(existing.content);
       await insertRevision(client, documentId, existing.content, oldHash);
     }
     await syncLinks(client, workspaceId, documentId, canonicalContent);
+    await syncChunks(client, workspaceId, documentId, chunks, chunkEmbeddings, hash);
     return document;
   });
 }
@@ -218,6 +223,38 @@ async function syncLinks(client: PoolClient, workspaceId: string, documentId: st
        ON CONFLICT (source_document_id, target_path, link_type) DO UPDATE SET target_document_id = $3`,
       [workspaceId, documentId, targetId, targetPath, meta.type]
     );
+  }
+}
+
+async function syncChunks(
+  client: PoolClient,
+  workspaceId: string,
+  documentId: string,
+  chunks: string[],
+  embeddings: (number[] | null)[],
+  contentHash: string
+) {
+  await client.query('DELETE FROM document_chunks WHERE document_id = $1', [documentId]);
+
+  for (let i = 0; i < chunks.length; i++) {
+    const chunk = chunks[i];
+    const embedding = embeddings[i];
+    const embeddingSql = embedding ? toSql(embedding) : null;
+    await client.query(
+      `INSERT INTO document_chunks (workspace_id, document_id, chunk_index, content, embedding, search_vector, content_hash)
+       VALUES ($1, $2, $3, $4, $5::vector, to_tsvector('english', $4), $6)`,
+      [workspaceId, documentId, i, chunk, embeddingSql, contentHash]
+    );
+  }
+}
+
+async function safeEmbedChunks(chunks: string[]): Promise<(number[] | null)[]> {
+  try {
+    return await embedChunks(chunks);
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.warn('Embedding failed, continuing without vector index', err);
+    return chunks.map(() => null);
   }
 }
 

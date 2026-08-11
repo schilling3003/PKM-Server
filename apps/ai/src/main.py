@@ -50,7 +50,24 @@ async def embed(req: EmbedRequest):
     return {"embedding": vec, "dimensions": dims}
 
 
+class AskRequest(BaseModel):
+    prompt: str
+
+
+class AskResponse(BaseModel):
+    answer: str
+
+
+@app.post("/ask", response_model=AskResponse)
+async def ask(req: AskRequest):
+    # v1 stub: a real deployment would route this to a configured model.
+    # The prompt already contains the grounded note context and citations.
+    return {
+        "answer": "I reviewed the cited notes above, but this v1 instance does not have a configured language model. Please check the cited sources directly."
+    }
+
+
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run("src.main:app", host="0.0.0.0", port=8000, reload=True)
