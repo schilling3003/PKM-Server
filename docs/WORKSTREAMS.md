@@ -8,13 +8,13 @@
 | 2 | Document persistence, revisioning, snapshots, recovery | coordinator | done | 1 |
 | 3 | Editor fidelity, keyboard workflows, slash commands, palette | child-3872c0 | done (v1 scope: split source/preview, Ctrl+S save) | 1, 2 |
 | 4 | Navigation, folders, tabs, properties, tags, outline, links, backlinks | child-3872c0 | done (v1 scope: tree, switcher, create/rename/delete, backlinks) | 1, 2 |
-| 5 | Full-text search, filters, quick switcher, unlinked mentions | coordinator | done | 1, 2 |
+| 5 | Full-text search, filters, quick switcher, unlinked mentions | child-webui (`devin/pkm-v1-search-theme`) | done | 1, 2 |
 | 6 | Semantic search, embeddings, vector retrieval | coordinator | done | 1, 2 |
 | 7 | Grounded AI answers, citations, abstention, diff editing | coordinator | done | 1, 6 |
 | 8 | Collaboration, presence, reconnects, conflicts, concurrent edits | unassigned | planned | 2, 3 |
 | 9 | Authentication, workspace membership, authorization, isolation | child-auth | in_progress | — |
 | 10 | Attachments, safe rendering, imports, exports, migration | child-attachments | in_progress | 1, 9 |
-| 11 | Responsive design, accessibility, theming, search UI, quick switcher | child-webui | in_progress | 3, 4 |
+| 11 | Responsive design, accessibility, theming, search UI, quick switcher | child-webui (`devin/pkm-v1-search-theme`) | done | 3, 4 |
 | 12 | Performance, resilience, rate limiting, observability, backups | unassigned | planned | all |
 | 13 | Supply-chain security, privacy, threat model, abuse cases | unassigned | planned | 9, 10 |
 | 14 | Clean-checkout onboarding, development tooling, CI, release readiness | coordinator | in_progress | all |
