@@ -10,6 +10,9 @@ export const metadata: Metadata = {
   description: "Markdown-first personal knowledge management",
 };
 
+// Per-request CSP nonces require dynamic rendering.
+export const dynamic = 'force-dynamic';
+
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en" suppressHydrationWarning>
