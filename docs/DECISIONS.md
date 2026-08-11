@@ -110,3 +110,35 @@ schema or parser for v1, and keeps canonical Markdown as the source of truth.
 of objects with `path` and `content`). A future front can switch to parsed
 `OkfIndex`/`OkfLog` structures while still accepting the current content-based
 entries for backward compatibility.
+
+## AD-008: Markdown frontmatter parsing limits
+
+**Decision**: Cap canonical document size at 1 MiB, frontmatter at 64 KiB, and
+YAML aliases at 100. Parse frontmatter YAML with `uniqueKeys: true` and
+`maxAliasCount: 100` and surface parse/validation failures as `400` responses.
+
+**Alternatives**: Use a separate YAML parser, restrict all frontmatter to a
+fixed schema, or rely on process-level memory limits.
+
+**Evidence**: A 3-level alias bomb can expand to a ~700 KB object from a tiny
+frontmatter string, causing per-request CPU/memory exhaustion. The `yaml` package
+provides `maxAliasCount`; byte limits prevent oversized notes and frontmatter.
+A `DocumentValidationError` mapped to `400` keeps the API from crashing or
+returning misleading 500s for malformed user input.
+
+**Reversibility**: Low. These are numeric safety limits and can be raised or
+made configurable via environment variables without schema changes.
+
+## AD-009: Post-login redirect target
+
+**Decision**: After successful registration or login, redirect the web UI to `/`
+(the home page, which lists the user's workspaces) rather than `/workspaces`,
+which is not implemented.
+
+**Alternatives**: Implement a dedicated `/workspaces` index page.
+
+**Evidence**: The current home page already serves the workspace-list role. A
+separate `/workspaces` route can be added later if the product requires a
+different layout for that view.
+
+**Reversibility**: High. Redirect target is a single string in `login/page.tsx`.
