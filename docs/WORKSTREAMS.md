@@ -19,7 +19,8 @@
 | 13 | Supply-chain security, privacy, threat model, abuse cases | child-security-hardening (`devin/pkm-v1-security-hardening`) | done (merged) | 9, 10 |
 | 14 | Clean-checkout onboarding, development tooling, CI, release readiness | child-ci (merged PR #5) | done | all |
 | 15 | Graph view, note outline, tags/properties panel | child-graph (`devin/pkm-v1-graph-panel`) | done (merged) | 3, 4 |
-| 16 | Tags and property search, advanced AI diff editing | unassigned | planned | 5, 15 |
+| 16 | Autosave, wikilink autocomplete, unlinked mentions, duplicate/archive/restore | child-autosave-ux | in progress | 3, 4, 15 |
+| 17 | AI index status, observability, and staleness indicators | unassigned | planned | 7, 15 |
 
 ## Shared Contracts
 
