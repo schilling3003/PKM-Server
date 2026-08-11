@@ -600,7 +600,15 @@ export default function WorkspacePage() {
   function handleRestore(id: string) {
     restoreDocument(workspaceId, id)
       .then((d) => {
-        setDocuments((prev) => [...prev, d].sort((a, b) => a.path.localeCompare(b.path)));
+        setDocuments((prev) =>
+          prev
+            .map((doc) => (doc.id === id ? d : doc))
+            .sort((a, b) => a.path.localeCompare(b.path))
+        );
+        if (doc?.id === id) {
+          setDoc(d);
+          setContent(d.content);
+        }
       })
       .catch((e) => setError(String(e)));
   }
