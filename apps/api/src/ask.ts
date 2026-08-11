@@ -35,10 +35,8 @@ export async function askWorkspace(workspaceId: string, question: string): Promi
     .map((r, i) => `Source [${i + 1}] ${r.path}: ${r.title ?? r.path}\n${r.content.slice(0, 800)}`)
     .join('\n\n');
 
-  const prompt = `You are a helpful research assistant. Answer the user's question using ONLY the provided notes. Cite sources with [N] markers. If the notes do not contain enough information, say so.\n\nNotes:\n${context}\n\nQuestion: ${question}\n\nAnswer:`;
-
   try {
-    const data = await generateAnswer(prompt);
+    const data = await generateAnswer({ context, question });
     return { answer: data.answer, citations };
   } catch (err) {
     // Fallback: return a grounded synthesis without an LLM call.

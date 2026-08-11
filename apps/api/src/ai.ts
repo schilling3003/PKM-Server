@@ -24,11 +24,11 @@ export async function embed(text: string): Promise<number[]> {
   return data.embedding;
 }
 
-export async function generateAnswer(prompt: string): Promise<{ answer: string }> {
+export async function generateAnswer(params: { context: string; question: string }): Promise<{ answer: string }> {
   const res = await fetch(`${aiUrl}/ask`, {
     method: 'POST',
     headers: aiHeaders(),
-    body: JSON.stringify({ prompt }),
+    body: JSON.stringify({ context: params.context, question: params.question }),
   });
   if (!res.ok) {
     throw new Error(`AI ask failed: ${res.status} ${await res.text()}`);
