@@ -65,6 +65,7 @@ jobs:
 
       minio:
         image: minio/minio
+        command: server /data --console-address ":9001"
         env:
           MINIO_ROOT_USER: minioadmin
           MINIO_ROOT_PASSWORD: minioadmin
