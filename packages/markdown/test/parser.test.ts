@@ -8,6 +8,9 @@ import {
   extractOutline,
   wikiToStandard,
   standardToWiki,
+  MAX_DOCUMENT_BYTES,
+  MAX_FRONTMATTER_BYTES,
+  MAX_YAML_ALIAS_COUNT,
 } from '../src/index.js';
 
 describe('parseCanonical', () => {
@@ -39,6 +42,33 @@ describe('parseCanonical', () => {
     const d1 = parseCanonical(text);
     const d2 = parseCanonical(text.replace(/\r\n/g, '\n'));
     expect(d1.hash).toBe(d2.hash);
+  });
+
+  it('rejects documents exceeding the byte size limit', () => {
+    const body = 'x'.repeat(MAX_DOCUMENT_BYTES + 1);
+    expect(() => parseCanonical(body)).toThrow(/maximum size/);
+  });
+
+  it('rejects frontmatter exceeding the byte size limit', () => {
+    const huge = 'a'.repeat(MAX_FRONTMATTER_BYTES + 100);
+    const text = `---\nkey: ${huge}\n---\nbody\n`;
+    expect(() => parseCanonical(text)).toThrow(/Frontmatter exceeds/);
+  });
+
+  it('rejects YAML alias bombs', () => {
+    const width = 50;
+    const text = `---\na: &a [${Array(width).fill('x').join(',')}]\nb: &b [${Array(width).fill('*a').join(',')}]\nc: &c [${Array(width).fill('*b').join(',')}]\n---\nbody\n`;
+    expect(() => parseCanonical(text)).toThrow();
+  });
+
+  it('preserves the configured maximum alias count for legitimate content', () => {
+    const aliases = Array.from({ length: MAX_YAML_ALIAS_COUNT }, (_, i) => `v${i}: &v${i} value`).join('\n');
+    const refs = Array.from({ length: MAX_YAML_ALIAS_COUNT }, (_, i) => `r${i}: *v${i}`).join('\n');
+    const text = `---\n${aliases}\n${refs}\n---\nbody\n`;
+    const doc = parseCanonical(text);
+    for (let i = 0; i < MAX_YAML_ALIAS_COUNT; i++) {
+      expect(doc.frontmatter[`r${i}`]).toBe('value');
+    }
   });
 });
 

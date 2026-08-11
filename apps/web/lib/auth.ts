@@ -34,6 +34,14 @@ async function authFetch<T>(
     } catch {
       /* ignore */
     }
+    if (text.startsWith('{')) {
+      try {
+        const json = JSON.parse(text) as { error?: string; message?: string };
+        text = json.error || json.message || text;
+      } catch {
+        // keep text
+      }
+    }
     throw new Error(text || `Request failed with ${res.status}`);
   }
 

@@ -1,6 +1,7 @@
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import { OkfValidationError } from '@pkm/okf';
+import { DocumentValidationError } from '@pkm/markdown';
 import { z } from 'zod';
 import './middleware/auth.js';
 import * as workspaces from './workspaces.js';
@@ -141,6 +142,9 @@ export async function buildApp(options: { logger?: boolean } = {}) {
       return reply.status(400).send({ error: 'Validation error', details: err.errors });
     }
     if (err instanceof OkfValidationError) {
+      return reply.status(400).send({ error: err.message });
+    }
+    if (err instanceof DocumentValidationError) {
       return reply.status(400).send({ error: err.message });
     }
     reply.status(500).send({ error: 'Internal server error' });

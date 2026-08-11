@@ -9,7 +9,19 @@ export interface CanonicalDocument {
   hash: string;
 }
 
+export class DocumentValidationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'DocumentValidationError';
+  }
+}
+
 const FRONTMATTER_RE = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n)?/;
+
+// Defensive limits to prevent DoS from YAML bombs or huge notes.
+export const MAX_DOCUMENT_BYTES = 1 * 1024 * 1024; // 1 MiB
+export const MAX_FRONTMATTER_BYTES = 64 * 1024; // 64 KiB
+export const MAX_YAML_ALIAS_COUNT = 100;
 
 function normalizeLineEndings(text: string): string {
   return text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
@@ -21,6 +33,10 @@ function computeHash(text: string): string {
 
 export function parseCanonical(content: string): CanonicalDocument {
   const normalized = normalizeLineEndings(content);
+  if (Buffer.byteLength(normalized, 'utf8') > MAX_DOCUMENT_BYTES) {
+    throw new DocumentValidationError(`Document exceeds maximum size of ${MAX_DOCUMENT_BYTES} bytes`);
+  }
+
   const match = normalized.match(FRONTMATTER_RE);
 
   let frontmatterRaw: string | null = null;
@@ -31,11 +47,23 @@ export function parseCanonical(content: string): CanonicalDocument {
     frontmatterRaw = match[1];
     body = normalized.slice(match[0].length);
     if (frontmatterRaw.trim()) {
-      const parsed = parseYaml(frontmatterRaw, { strict: false });
+      if (Buffer.byteLength(frontmatterRaw, 'utf8') > MAX_FRONTMATTER_BYTES) {
+        throw new DocumentValidationError(`Frontmatter exceeds maximum size of ${MAX_FRONTMATTER_BYTES} bytes`);
+      }
+      let parsed: unknown;
+      try {
+        parsed = parseYaml(frontmatterRaw, {
+          strict: false,
+          uniqueKeys: true,
+          maxAliasCount: MAX_YAML_ALIAS_COUNT,
+        });
+      } catch (err) {
+        throw new DocumentValidationError(err instanceof Error ? err.message : 'Invalid frontmatter YAML');
+      }
       if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
         frontmatter = parsed as Record<string, unknown>;
       } else if (parsed !== null) {
-        throw new Error('Frontmatter must be a YAML mapping object');
+        throw new DocumentValidationError('Frontmatter must be a YAML mapping object');
       }
     }
   } else {
