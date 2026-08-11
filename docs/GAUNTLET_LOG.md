@@ -171,3 +171,17 @@ clean shutdown.
 **Changes**: `apps/api/src/documents.ts`, `apps/api/src/app.ts`, `apps/api/src/migrations/0004_archive.sql`, `apps/web/lib/api.ts`, `apps/web/app/workspaces/[id]/page.tsx`, `docs/WORKSTREAMS.md`.
 **Regressions**: None.
 **Blockers**: None.
+
+## Round 1.1 — Workstream 17: AI index status, observability, and staleness indicators
+
+**Date**: 2026-08-11
+**Coordinator**: Devin
+**Verdict**: Implemented and merged into `devin/pkm-v1-search-ai`.
+- Added `GET /workspaces/:workspaceId/index-status` returning document count, indexed/current/stale counts, chunk count, and embedded chunk count.
+- Added `GET /workspaces/:workspaceId/documents/:id/index-status` returning per-document chunk count, embedded chunk count, and `stale` boolean based on whether chunk content hashes match the document's current content hash.
+- Added an "Index status" panel in the workspace right sidebar showing workspace-level and per-note index/embedding state and stale warnings.
+**Evidence**: `pnpm -r build/typecheck/lint/test` pass; integration test confirms the endpoint reports counts and correctly flags stale chunks after an out-of-band canonical update.
+**Critic report**: Pending; round 0.8 critic and tester still running.
+**Changes**: `apps/api/src/documents.ts`, `apps/api/src/app.ts`, `apps/web/lib/api.ts`, `apps/web/app/workspaces/[id]/page.tsx`, `apps/api/test/integration.test.ts`, `docs/WORKSTREAMS.md`, `docs/GAUNTLET_LOG.md`.
+**Regressions**: None.
+**Blockers**: None.

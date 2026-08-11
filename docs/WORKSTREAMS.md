@@ -20,7 +20,7 @@
 | 14 | Clean-checkout onboarding, development tooling, CI, release readiness | child-ci (merged PR #5) | done | all |
 | 15 | Graph view, note outline, tags/properties panel | child-graph (`devin/pkm-v1-graph-panel`) | done (merged) | 3, 4 |
 | 16 | Autosave, wikilink autocomplete, unlinked mentions, duplicate/archive/restore | coordinator (`devin/pkm-v1-autosave-ux`) | done (merged) | 3, 4, 15 |
-| 17 | AI index status, observability, and staleness indicators | unassigned | planned | 7, 15 |
+| 17 | AI index status, observability, and staleness indicators | coordinator (`devin/pkm-v1-ai-observability`) | done (merged) | 7, 15 |
 
 ## Shared Contracts
 
