@@ -700,6 +700,14 @@ export default function WorkspacePage() {
 
               <ThemeToggle />
 
+              <NextLink
+                href={`/workspaces/${workspaceId}/attachments`}
+                className="rounded border border-border bg-muted px-2 py-1.5 text-sm text-foreground hover:bg-muted/80"
+                title="Attachments"
+              >
+                Attachments
+              </NextLink>
+
               {isDirty && <span className="hidden text-xs text-amber-600 sm:inline">Unsaved</span>}
               {isSaving && <span className="text-xs text-muted-foreground">Saving…</span>}
               <button

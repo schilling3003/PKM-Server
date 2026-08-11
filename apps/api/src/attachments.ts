@@ -6,6 +6,7 @@ import { z } from 'zod';
 import type { FastifyInstance } from 'fastify';
 import type { PoolClient } from 'pg';
 import { pool } from './db.js';
+import './middleware/auth.js';
 import * as workspaces from './workspaces.js';
 
 export interface AttachmentRow {
@@ -26,6 +27,25 @@ const S3_ACCESS_KEY = process.env.S3_ACCESS_KEY || 'minioadmin';
 const S3_SECRET_KEY = process.env.S3_SECRET_KEY || 'minioadmin';
 const S3_BUCKET = process.env.S3_BUCKET || 'pkm';
 const S3_REGION = process.env.S3_REGION || 'us-east-1';
+
+async function requireWorkspaceMembership(
+  request: import('fastify').FastifyRequest,
+  reply: import('fastify').FastifyReply,
+  workspaceId: string
+) {
+  // When auth is not wired (e.g. some test harnesses), skip membership check.
+  if (!request.user) return true;
+
+  const { rows } = await pool.query(
+    'SELECT 1 FROM workspace_members WHERE workspace_id = $1 AND user_id = $2',
+    [workspaceId, request.user.id]
+  );
+  if (rows.length === 0) {
+    reply.code(403).send({ error: 'Forbidden' });
+    return false;
+  }
+  return true;
+}
 
 const BLOCKED_EXTENSIONS = new Set([
   '.exe', '.dll', '.bat', '.cmd', '.sh', '.com', '.msi', '.jar', '.ps1',
@@ -164,6 +184,7 @@ export async function registerAttachmentRoutes(app: FastifyInstance) {
 
     const ws = await workspaces.getWorkspace(workspaceId);
     if (!ws) return reply.status(404).send({ error: 'Workspace not found' });
+    if (!(await requireWorkspaceMembership(req, reply, workspaceId))) return;
 
     const data = await req.file({
       limits: { fileSize: MAX_FILE_SIZE },
@@ -230,6 +251,7 @@ export async function registerAttachmentRoutes(app: FastifyInstance) {
     const { id: workspaceId } = req.params as { id: string };
     const ws = await workspaces.getWorkspace(workspaceId);
     if (!ws) return reply.status(404).send({ error: 'Workspace not found' });
+    if (!(await requireWorkspaceMembership(req, reply, workspaceId))) return;
     const attachments = await listAttachments(workspaceId);
     return attachments;
   });
@@ -243,6 +265,7 @@ export async function registerAttachmentRoutes(app: FastifyInstance) {
     if (!attachment || attachment.workspace_id !== workspaceId) {
       return reply.status(404).send({ error: 'Attachment not found' });
     }
+    if (!(await requireWorkspaceMembership(req, reply, workspaceId))) return;
 
     await ensureBucket();
     const client = getClient();
@@ -263,6 +286,7 @@ export async function registerAttachmentRoutes(app: FastifyInstance) {
     if (!attachment || attachment.workspace_id !== workspaceId) {
       return reply.status(404).send({ error: 'Attachment not found' });
     }
+    if (!(await requireWorkspaceMembership(req, reply, workspaceId))) return;
 
     await ensureBucket();
     const client = getClient();

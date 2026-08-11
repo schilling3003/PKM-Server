@@ -3,7 +3,7 @@ import * as bcrypt from 'bcrypt';
 import cookie from '@fastify/cookie';
 import { z } from 'zod';
 import { query } from './db.js';
-import { requireAuth, SESSION_COOKIE } from './middleware/auth.js';
+import { requireAuth, optionalAuth, SESSION_COOKIE } from './middleware/auth.js';
 
 const SALT_ROUNDS = 12;
 const SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 7; // 7 days
@@ -103,14 +103,18 @@ export async function registerAuthRoutes(app: FastifyInstance) {
     return { user: request.user };
   });
 
-  // Require authentication and workspace membership for all /workspaces/:id/* routes.
+  // Attach optional authentication to /workspaces list/create,
+  // and require authentication + workspace membership for /workspaces/:id/*.
   app.addHook('preHandler', async (request: FastifyRequest, reply: FastifyReply) => {
     const pathname = request.url.split('?')[0];
     const parts = pathname.split('/').filter(Boolean);
     if (parts[0] !== 'workspaces') return;
 
     const workspaceId = parts[1];
-    if (!workspaceId) return; // /workspaces list/create are not protected here
+    if (!workspaceId) {
+      await optionalAuth(request);
+      return;
+    }
 
     await requireAuth(request, reply);
     if (reply.sent) return;

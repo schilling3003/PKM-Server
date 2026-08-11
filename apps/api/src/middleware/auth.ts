@@ -9,21 +9,30 @@ declare module 'fastify' {
   }
 }
 
-export async function requireAuth(request: FastifyRequest, reply: FastifyReply) {
+async function resolveUser(request: FastifyRequest) {
   const raw = request.cookies[SESSION_COOKIE];
-  if (!raw) {
-    return reply.code(401).send({ error: 'Unauthorized' });
-  }
+  if (!raw) return null;
 
   const unsigned = request.unsignCookie(raw);
-  if (!unsigned.valid || !unsigned.value) {
-    return reply.code(401).send({ error: 'Unauthorized' });
-  }
+  if (!unsigned.valid || !unsigned.value) return null;
 
   const { rows } = await query('SELECT id, email FROM users WHERE id = $1', [unsigned.value]);
-  if (!rows[0]) {
+  if (!rows[0]) return null;
+
+  return { id: rows[0].id as string, email: rows[0].email as string };
+}
+
+export async function requireAuth(request: FastifyRequest, reply: FastifyReply) {
+  const user = await resolveUser(request);
+  if (!user) {
     return reply.code(401).send({ error: 'Unauthorized' });
   }
+  request.user = user;
+}
 
-  request.user = { id: rows[0].id as string, email: rows[0].email as string };
+export async function optionalAuth(request: FastifyRequest) {
+  if (!request.user) {
+    const user = await resolveUser(request);
+    request.user = user ?? undefined;
+  }
 }

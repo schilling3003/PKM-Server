@@ -1,6 +1,7 @@
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import { z } from 'zod';
+import './middleware/auth.js';
 import * as workspaces from './workspaces.js';
 import * as documents from './documents.js';
 import * as search from './search.js';
@@ -15,11 +16,14 @@ export async function buildApp(options: { logger?: boolean } = {}) {
   app.post('/workspaces', async (req, reply) => {
     const schema = z.object({ name: z.string().min(1) });
     const body = schema.parse(req.body);
-    const ws = await workspaces.createWorkspace(body.name);
+    const ws = await workspaces.createWorkspace(body.name, req.user?.id);
     reply.status(201).send(ws);
   });
 
-  app.get('/workspaces', async () => {
+  app.get('/workspaces', async (req) => {
+    if (req.user) {
+      return workspaces.listUserWorkspaces(req.user.id);
+    }
     return workspaces.listWorkspaces();
   });
 
