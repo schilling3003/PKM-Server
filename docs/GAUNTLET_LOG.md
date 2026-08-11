@@ -414,3 +414,20 @@ clean shutdown.
 **Changes**: `apps/web/proxy.ts`, `docs/SECURITY.md`, `docs/WORKSTREAMS.md`, `docs/GAUNTLET_LOG.md`.
 **Regressions**: None.
 **Blockers**: Awaiting child sessions for workstream 8 (Ask + AI diff) and workstream 22 (OKF UI).
+
+## Round 1.14 — Workstream 22: OKF import/export UI
+
+**Date**: 2026-08-11
+**Builder**: Devin (child session `devin-0ab796bb64544fa091bcb251ab6fed58`)
+**Branch**: `devin/pkm-v1-okf-ui`
+**Verdict**: Implemented and verified.
+- Added `exportOkf` and `importOkf` client helpers to `apps/web/lib/api.ts`.
+- Added `/workspaces/[id]/okf` page with Export (download JSON) and Import (file picker + validation) controls.
+- Wired an `OKF` link from the workspace editor header.
+- Included the OKF route in `apps/web/scripts/axe-audit.js` for accessibility coverage.
+- Updated `docs/WORKSTREAMS.md` workstream 22 to `done`.
+
+**Evidence**: `pnpm -r typecheck`, `pnpm -r lint`, `pnpm -r test`, and `pnpm -r build` pass; `pnpm audit --prod` reports no known vulnerabilities; `apps/web/scripts/axe-audit.js` reports no critical or serious accessibility violations on the OKF page; `apps/web/scripts/verify-okf-ui.js` exports and imports an OKF v0.2 bundle through the new page.
+**Decisive gap**: None.
+**Regressions**: None.
+**Blockers**: None.
