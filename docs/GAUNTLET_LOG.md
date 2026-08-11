@@ -265,3 +265,19 @@ clean shutdown.
 **Changes**: `packages/markdown/src/links.ts`, `packages/markdown/test/parser.test.ts`, `apps/web/next.config.ts`, `apps/web/Dockerfile`, `apps/web/app/globals.css`, `apps/web/app/workspaces/[id]/page.tsx`, `docs/DECISIONS.md`, `docs/SECURITY.md`, `docs/GAUNTLET_LOG.md`.
 **Regressions**: None.
 **Blockers**: None.
+
+## Round 1.6 — Revisions merge and round 1.5 tester follow-up
+
+**Date**: 2026-08-11
+**Coordinator**: Devin
+**Verdict**: Merged workstream 18 (revisions) and addressed the three UI/interaction findings from the round 1.5 end-to-end tester.
+- **Merged PR #7 (`devin/pkm-v1-revisions`) into `devin/pkm-v1-search-ai`**: resolved the `docs/WORKSTREAMS.md` conflict and verified `pnpm -r typecheck/lint/test` after the merge. The revisions API/UI adds `GET /workspaces/:ws/documents/:doc/revisions/:id`, `POST .../restore`, and a right-sidebar Revisions panel.
+- **Wikilink autocomplete inserted a partial-query alias**: `packages/markdown/src/links.ts` `insertWikilink` now accepts an optional `displayText`; the UI passes `target.title` (or basename) and omits the alias when it matches the target. Unit tests cover the no-alias case.
+- **Archive/restore action buttons were hover-only and missed by the harness**: removed `opacity-0 group-hover:opacity-100` from the duplicate/archive/rename/delete buttons in the note tree so they are always visible and clickable.
+- **`Show archived` checkbox did not respond to mouse clicks**: replaced the native checkbox/label with a `<button>` toggle that uses `aria-pressed` and a custom checkbox indicator, giving it a consistent clickable surface.
+- **Search header button click**: verified the button opens the search palette; `Ctrl+K`/`Cmd+K` remains the keyboard shortcut.
+**Evidence**: `pnpm -r build/typecheck/lint/test` pass; `pnpm audit --prod` clean; Docker Compose stack healthy; browser verifies search palette opens from header, wikilink `[[ca` → `Tab` inserts `[[cat]]` (no alias), and the `Show archived` control is present.
+**Decisive gap**: Re-run the persistent end-to-end tester to confirm the archive/restore flow and `Show archived` toggle pass in the automated harness.
+**Changes**: `packages/markdown/src/links.ts`, `packages/markdown/test/parser.test.ts`, `apps/web/app/workspaces/[id]/page.tsx`, `docs/WORKSTREAMS.md`, `docs/GAUNTLET_LOG.md`.
+**Regressions**: None.
+**Blockers**: None.
