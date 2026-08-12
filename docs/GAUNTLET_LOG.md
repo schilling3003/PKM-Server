@@ -522,3 +522,35 @@ clean shutdown.
 **Changes**: `apps/ai/src/main.py`, `docs/DECISIONS.md`, `docs/GAUNTLET_LOG.md`, `docs/WORKSTREAMS.md`.
 **Regressions**: None.
 **Blockers**: None.
+
+## Round 2.2 — Gauntlet critic verdict: LightRAG integration PASS
+
+**Date**: 2026-08-12
+**Critic**: Devin
+**Verdict**: PASS — no release blockers identified on `devin/pkm-lightrag-coord` at `1b56c3f`.
+- Re-ran the Gauntlet quality suite from a clean checkout of the branch: `pnpm -r typecheck`, `pnpm -r lint`, `pnpm -r build`, `pnpm -r test`, and `pnpm audit --prod` all pass.
+- Re-ran the resilience suite: `RUN_RESILIENCE_TESTS=1 pnpm --filter @pkm/api test test/resilience.test.ts` passes 6/6 (Postgres, Redis, MinIO restart recovery; bulk workspace isolation; failed AI indexing recovery).
+- Brought up the full Docker Compose stack (`docker compose up -d --wait`) and verified all services (`postgres` image `pgvector/pgvector:pg16`, Redis, MinIO, Temporal) report healthy.
+- Started the real `apps/ai` FastAPI service (`EMBEDDING_PROVIDER=stub`, no LLM configured) and `apps/api`, then exercised the running endpoints with `curl`:
+  - Created two workspaces, each with a Markdown note; confirmed `/search` returns only the current workspace's note and `/ask` returns only the current workspace's citations.
+  - Edited a note and confirmed `/ask` returns the updated snippet and `/index-status` stays at one document with `failed_document_count: 0`.
+  - Confirmed `/ask` no-LLM fallback returns grounded snippets plus the warning `"No LLM is configured. The answer is a summary of the most relevant note snippets."`.
+  - Confirmed `/graph` returns merged manual wikilink nodes/edges and the web graph page renders without accessibility violations (`apps/web/scripts/axe-audit.js` passed).
+- Inspected the running Postgres database:
+  - `document_chunks` table does not exist; `0004_drop_document_chunks.sql` has removed the legacy table.
+  - LightRAG-created tables (`lightrag_doc_status`, `lightrag_doc_full`, `lightrag_doc_chunks`, `lightrag_vdb_chunks_*`, `lightrag_graph_nodes`, `lightrag_graph_edges`) include a `workspace` column and are keyed/partitioned on `(workspace, id)`, with counts grouped by the workspace UUID proving no cross-workspace leakage.
+  - `lightrag_doc_status.content_hash` matches the canonical `documents.content_hash` for each indexed note.
+  - `process_options` in `lightrag_doc_status.metadata` is `"F!"` when no LLM is configured, so KG extraction is skipped and `lightrag_graph_nodes`/`lightrag_graph_edges` remain empty.
+- Verified code-level evidence for all focus areas:
+  - `apps/ai/src/main.py` creates per-workspace `LightRAG` instances with `kv_storage="PGKVStorage"`, `vector_storage="PGVectorStorage"`, `doc_status_storage="PGDocStatusStorage"`, `graph_storage="PGTableGraphStorage"`, `workspace=workspace_id`.
+  - `apps/ai/requirements.txt` pins `lightrag-hku==1.5.6` and `numpy==2.2.6`; no Apache AGE or Neo4j dependency was introduced.
+  - `apps/api/src/search.ts`, `apps/api/src/ask.ts`, `apps/api/src/graph.ts`, and `apps/api/src/propose.ts` delegate to the AI service; `apps/api/src/documents.ts` preserves canonical Markdown and `content_hash` and treats indexing failures as best-effort projections.
+  - `apps/web/app/workspaces/[id]/graph/page.tsx` contains `if (node.source === 'entity' || node.type === 'entity') return;` to prevent navigating on AI-derived entity nodes.
+  - API and AI service logs do not contain note bodies, prompts, or secrets.
+- Documentation review: `docs/DECISIONS.md` AD-003 accurately records the LightRAG/Postgres decision; `docs/WORKSTREAMS.md` and `docs/GAUNTLET_LOG.md` are updated by this round.
+
+**Evidence**: command outputs captured in session; `curl` smoke and DB inspection reproduced locally; `apps/web/scripts/axe-audit.js` reports no critical/serious violations on `/`, `/login`, editor, `/ask`, `/diff`, `/attachments`, `/graph`, and `/okf`.
+**Decisive gap**: None. The AI entity-node click guard and full LLM-driven entity graph were not exercisable without a live LLM, but the guard code is unambiguous.
+**Changes**: `docs/GAUNTLET_LOG.md`, `docs/WORKSTREAMS.md`.
+**Regressions**: None.
+**Blockers**: None.
