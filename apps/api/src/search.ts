@@ -1,66 +1,72 @@
-import { toSql } from 'pgvector/utils';
 import { pool } from './db.js';
-import { embed } from './ai.js';
+import { searchDocuments } from './ai.js';
 
-export async function fullTextSearch(workspaceId: string, query: string, limit = 20) {
+export interface SearchResult {
+  id: string;
+  path: string;
+  title: string | null;
+  content: string;
+  score: number;
+}
+
+export async function fullTextSearch(workspaceId: string, query: string, limit = 20): Promise<SearchResult[]> {
+  // Full-text search remains available as a fast path; most callers should use
+  // hybridSearch, which now delegates semantic ranking to the LightRAG AI service.
   const { rows } = await pool.query(
-    `SELECT id, path, title, content, ts_rank_cd(search_vector, plainto_tsquery('english', $2)) AS rank
+    `SELECT id, path, title, content, ts_rank_cd(search_vector, plainto_tsquery('english', $2)) AS score
      FROM documents
      WHERE workspace_id = $1 AND search_vector @@ plainto_tsquery('english', $2)
-     ORDER BY rank DESC
+     ORDER BY score DESC
      LIMIT $3`,
     [workspaceId, query, limit]
   );
-  return rows;
+  return rows as SearchResult[];
 }
 
-export async function semanticSearch(workspaceId: string, query: string, limit = 20) {
-  const vector = await embed(query);
-  const { rows } = await pool.query(
-    `SELECT d.id, d.path, d.title, c.content, c.embedding <=> $2::vector AS distance
-     FROM document_chunks c
-     JOIN documents d ON d.id = c.document_id
-     WHERE c.workspace_id = $1 AND c.embedding IS NOT NULL
-       AND c.embedding <=> $2::vector < 1.0
-     ORDER BY c.embedding <=> $2::vector
-     LIMIT $3`,
-    [workspaceId, toSql(vector), limit]
+export async function semanticSearch(workspaceId: string, query: string, limit = 20): Promise<SearchResult[]> {
+  return (await hybridSearch(workspaceId, query, limit)).slice(0, limit);
+}
+
+export async function hybridSearch(workspaceId: string, query: string, limit = 20): Promise<SearchResult[]> {
+  const result = await searchDocuments(workspaceId, query, limit);
+  const chunks = result.chunks ?? [];
+  if (chunks.length === 0) {
+    return fullTextSearch(workspaceId, query, limit);
+  }
+
+  // Resolve chunk file paths to canonical documents and dedupe by document,
+  // keeping the highest-scoring (first) chunk per document.
+  const paths = [...new Set(chunks.map((c) => c.file_path))];
+  const { rows: docs } = await pool.query<{ id: string; path: string; title: string | null; content: string }>(
+    `SELECT id, path, title, content
+     FROM documents
+     WHERE workspace_id = $1 AND path = ANY($2::text[])`,
+    [workspaceId, paths]
   );
-  return rows;
-}
+  const byPath = new Map(docs.map((d) => [d.path, d]));
 
-export async function hybridSearch(workspaceId: string, query: string, limit = 20) {
-  const [fulltext, semantic] = await Promise.all([
-    fullTextSearch(workspaceId, query, limit),
-    (async () => {
-      try {
-        return await semanticSearch(workspaceId, query, limit);
-      } catch (err) {
-        return [];
-      }
-    })(),
-  ]);
-
-  const scores = new Map<string, { id: string; path: string; title: string | null; content: string; score: number }>();
-
-  for (let i = 0; i < fulltext.length; i++) {
-    const row = fulltext[i];
-    scores.set(row.id, { ...row, score: (fulltext.length - i) * 1.0 + (row.rank ?? 0) });
+  const seen = new Set<string>();
+  const results: SearchResult[] = [];
+  for (let i = 0; i < chunks.length; i++) {
+    const chunk = chunks[i];
+    const doc = byPath.get(chunk.file_path);
+    if (!doc || seen.has(doc.id)) continue;
+    seen.add(doc.id);
+    results.push({
+      id: doc.id,
+      path: doc.path,
+      title: doc.title,
+      content: chunk.content,
+      score: (limit - i) / limit,
+    });
+    if (results.length >= limit) break;
   }
 
-  for (let i = 0; i < semantic.length; i++) {
-    const row = semantic[i];
-    const distance = row.distance ?? 1;
-    const semanticScore = (1 - distance) * 100 + (semantic.length - i) * 0.5;
-    const existing = scores.get(row.id);
-    if (existing) {
-      existing.score += semanticScore;
-    } else {
-      scores.set(row.id, { id: row.id, path: row.path, title: row.title, content: row.content, score: semanticScore });
-    }
+  // If LightRAG returned no resolvable documents but the query is broad, fall
+  // back to full-text so search still works when the index is empty/stale.
+  if (results.length === 0) {
+    return fullTextSearch(workspaceId, query, limit);
   }
 
-  return Array.from(scores.values())
-    .sort((a, b) => b.score - a.score)
-    .slice(0, limit);
+  return results;
 }

@@ -27,7 +27,7 @@
 | 21 | Final Gauntlet integration, clean checkout reproducibility, and PR readiness | coordinator | done (all release blockers resolved; final v3 critic PASS; v1 complete) | all |
 | 22 | OKF import/export UI (workspace-level export and bundle import) | child-okf-ui (`devin/pkm-v1-okf-ui`) | done (merged) | 10 |
 | 23 | Public landing authentication redirect and axe contrast fixes | coordinator | done | 9, 11 |
-| 24 | LightRAG integration: semantic retrieval, AI graph, and derived knowledge graph | child-lightrag (`devin/pkm-lightrag-integration`) | in progress | 6, 7, 15 |
+| 24 | LightRAG integration: semantic retrieval, AI graph, and derived knowledge graph | child-lightrag (`devin/pkm-lightrag-integration`) | done (this PR) | 6, 7, 15 |
 
 ## Shared Contracts
 

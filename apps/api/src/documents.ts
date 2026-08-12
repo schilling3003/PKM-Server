@@ -1,9 +1,8 @@
 import { parseCanonical, serializeCanonical, extractWikiLinks, extractStandardLinks, hashContent } from '@pkm/markdown';
 import { isReservedFilename, OkfValidationError } from '@pkm/okf';
-import { toSql } from 'pgvector/utils';
 import type { PoolClient } from 'pg';
 import { pool } from './db.js';
-import { generateChunks, embedChunks } from './chunks.js';
+import { indexDocument, deleteDocumentIndex, getLightRAGIndexStatus } from './ai.js';
 
 const MAX_DOCUMENT_BYTES = 1024 * 1024;
 
@@ -107,6 +106,33 @@ export async function getRevision(workspaceId: string, documentId: string, revis
   return rows[0] ?? null;
 }
 
+async function safeIndexDocument(
+  workspaceId: string,
+  documentId: string,
+  path: string,
+  content: string,
+  contentHash: string
+): Promise<void> {
+  try {
+    await indexDocument({ workspace_id: workspaceId, document_id: documentId, path, content, content_hash: contentHash });
+  } catch (err) {
+    // Indexing is a projection; never fail the canonical write.
+    const message = err instanceof Error ? err.message : String(err);
+    // eslint-disable-next-line no-console
+    console.warn(`Indexing failed for ${path} in workspace ${workspaceId}:`, message);
+  }
+}
+
+async function safeDeleteDocumentIndex(workspaceId: string, documentId: string): Promise<void> {
+  try {
+    await deleteDocumentIndex(workspaceId, documentId);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    // eslint-disable-next-line no-console
+    console.warn(`Delete index failed for ${documentId} in workspace ${workspaceId}:`, message);
+  }
+}
+
 export async function createDocument(
   workspaceId: string,
   path: string,
@@ -127,23 +153,22 @@ export async function createDocument(
     body: parsed.body,
   });
 
-  const chunks = generateChunks(parsed.body);
-  const chunkEmbeddings = await safeEmbedChunks(chunks);
-
-  return await withTx(async (client) => {
+  const document = await withTx(async (client) => {
     const { rows } = await client.query<DocumentRow>(
       `INSERT INTO documents (workspace_id, path, title, content, frontmatter, content_hash, search_vector)
        VALUES ($1, $2, $3, $4, $5, $6, to_tsvector('english', coalesce($3, '') || ' ' || $4))
        RETURNING id, workspace_id, path, title, content, frontmatter, content_hash, created_at, updated_at`,
       [workspaceId, normalized, title, canonicalContent, JSON.stringify(parsed.frontmatter), hash]
     );
-    const document = rows[0];
-    await insertRevision(client, document.id, canonicalContent, hash);
-    await syncLinks(client, workspaceId, document.id, canonicalContent);
-    await resolveBacklinks(client, workspaceId, document.id, document.path);
-    await syncChunks(client, workspaceId, document.id, chunks, chunkEmbeddings, hash);
-    return document;
+    const doc = rows[0];
+    await insertRevision(client, doc.id, canonicalContent, hash);
+    await syncLinks(client, workspaceId, doc.id, canonicalContent);
+    await resolveBacklinks(client, workspaceId, doc.id, doc.path);
+    return doc;
   });
+
+  await safeIndexDocument(workspaceId, document.id, document.path, canonicalContent, hash);
+  return document;
 }
 
 export async function updateDocument(
@@ -172,10 +197,7 @@ export async function updateDocument(
     body: parsed.body,
   });
 
-  const chunks = generateChunks(parsed.body);
-  const chunkEmbeddings = await safeEmbedChunks(chunks);
-
-  return await withTx(async (client) => {
+  const document = await withTx(async (client) => {
     const newPath = updates.path ? normalizePath(updates.path) : existing.path;
     const { rows } = await client.query<DocumentRow>(
       `UPDATE documents
@@ -186,8 +208,8 @@ export async function updateDocument(
        RETURNING id, workspace_id, path, title, content, frontmatter, content_hash, created_at, updated_at`,
       [newPath, title, canonicalContent, JSON.stringify(parsed.frontmatter), hash, workspaceId, documentId]
     );
-    const document = rows[0];
-    if (!document) throw new Error('Document not found');
+    const doc = rows[0];
+    if (!doc) throw new Error('Document not found');
 
     if (updates.path && existing.path !== newPath) {
       await client.query(
@@ -201,10 +223,12 @@ export async function updateDocument(
       await insertRevision(client, documentId, existing.content, oldHash);
     }
     await syncLinks(client, workspaceId, documentId, canonicalContent);
-    await resolveBacklinks(client, workspaceId, documentId, document.path);
-    await syncChunks(client, workspaceId, documentId, chunks, chunkEmbeddings, hash);
-    return document;
+    await resolveBacklinks(client, workspaceId, documentId, doc.path);
+    return doc;
   });
+
+  await safeIndexDocument(workspaceId, document.id, document.path, canonicalContent, hash);
+  return document;
 }
 
 export async function restoreRevision(workspaceId: string, documentId: string, revisionId: string): Promise<DocumentRow> {
@@ -234,10 +258,7 @@ export async function restoreRevision(workspaceId: string, documentId: string, r
     body: parsed.body,
   });
 
-  const chunks = generateChunks(parsed.body);
-  const chunkEmbeddings = await safeEmbedChunks(chunks);
-
-  return await withTx(async (client) => {
+  const document = await withTx(async (client) => {
     const { rows } = await client.query<DocumentRow>(
       `UPDATE documents
        SET path = $1, title = $2, content = $3, frontmatter = $4, content_hash = $5,
@@ -247,19 +268,22 @@ export async function restoreRevision(workspaceId: string, documentId: string, r
        RETURNING id, workspace_id, path, title, content, frontmatter, content_hash, archived_at, created_at, updated_at`,
       [existing.path, title, canonicalContent, JSON.stringify(parsed.frontmatter), hash, workspaceId, documentId]
     );
-    const document = rows[0];
-    if (!document) throw new Error('Document not found');
+    const doc = rows[0];
+    if (!doc) throw new Error('Document not found');
 
     await insertRevision(client, documentId, canonicalContent, hash);
     await syncLinks(client, workspaceId, documentId, canonicalContent);
-    await resolveBacklinks(client, workspaceId, documentId, document.path);
-    await syncChunks(client, workspaceId, documentId, chunks, chunkEmbeddings, hash);
-    return document;
+    await resolveBacklinks(client, workspaceId, documentId, doc.path);
+    return doc;
   });
+
+  await safeIndexDocument(workspaceId, document.id, document.path, canonicalContent, hash);
+  return document;
 }
 
 export async function deleteDocument(workspaceId: string, documentId: string): Promise<void> {
   await pool.query('DELETE FROM documents WHERE workspace_id = $1 AND id = $2', [workspaceId, documentId]);
+  await safeDeleteDocumentIndex(workspaceId, documentId);
 }
 
 export async function getBacklinks(workspaceId: string, documentId: string) {
@@ -344,35 +368,159 @@ async function resolveBacklinks(client: PoolClient, workspaceId: string, documen
   );
 }
 
-async function syncChunks(
-  client: PoolClient,
-  workspaceId: string,
-  documentId: string,
-  chunks: string[],
-  embeddings: (number[] | null)[],
-  contentHash: string
-) {
-  await client.query('DELETE FROM document_chunks WHERE document_id = $1', [documentId]);
+export async function duplicateDocument(workspaceId: string, documentId: string): Promise<DocumentRow> {
+  const existing = await getDocument(workspaceId, documentId);
+  if (!existing) throw new Error('Document not found');
 
-  for (let i = 0; i < chunks.length; i++) {
-    const chunk = chunks[i];
-    const embedding = embeddings[i];
-    const embeddingSql = embedding ? toSql(embedding) : null;
-    await client.query(
-      `INSERT INTO document_chunks (workspace_id, document_id, chunk_index, content, embedding, search_vector, content_hash)
-       VALUES ($1, $2, $3, $4, $5::vector, to_tsvector('english', $4), $6)`,
-      [workspaceId, documentId, i, chunk, embeddingSql, contentHash]
+  const document = await withTx(async (client) => {
+    const newPath = await uniqueDuplicatePath(client, workspaceId, existing.path);
+    const parsed = parseDocumentContent(existing.content);
+    const title = computeTitle(parsed.frontmatter, newPath);
+    const contentHash = hashContent(existing.content);
+    const { rows } = await client.query<DocumentRow>(
+      `INSERT INTO documents (workspace_id, path, title, content, frontmatter, content_hash, search_vector)
+       VALUES ($1, $2, $3, $4, $5, $6, to_tsvector('english', coalesce($3, '') || ' ' || $4))
+       RETURNING id, workspace_id, path, title, content, frontmatter, content_hash, archived_at, created_at, updated_at`,
+      [workspaceId, newPath, title, existing.content, JSON.stringify(parsed.frontmatter), contentHash]
     );
-  }
+    const doc = rows[0];
+    await insertRevision(client, doc.id, existing.content, contentHash);
+    await syncLinks(client, workspaceId, doc.id, existing.content);
+    await resolveBacklinks(client, workspaceId, doc.id, doc.path);
+    return doc;
+  });
+
+  await safeIndexDocument(workspaceId, document.id, document.path, document.content, document.content_hash);
+  return document;
 }
 
-async function safeEmbedChunks(chunks: string[]): Promise<(number[] | null)[]> {
+export async function archiveDocument(workspaceId: string, documentId: string): Promise<DocumentRow> {
+  const { rows } = await pool.query<DocumentRow>(
+    `UPDATE documents SET archived_at = now()
+     WHERE workspace_id = $1 AND id = $2
+     RETURNING id, workspace_id, path, title, content, frontmatter, content_hash, archived_at, created_at, updated_at`,
+    [workspaceId, documentId]
+  );
+  if (!rows[0]) throw new Error('Document not found');
+  await safeDeleteDocumentIndex(workspaceId, documentId);
+  return rows[0];
+}
+
+export interface IndexStatus {
+  document_count: number;
+  indexed_document_count: number;
+  current_document_count: number;
+  stale_document_count: number;
+  failed_document_count: number;
+  chunk_count: number;
+  embedded_chunk_count: number;
+}
+
+export async function getWorkspaceIndexStatus(workspaceId: string): Promise<IndexStatus> {
+  const { rows: docs } = await pool.query<{ id: string; content_hash: string }>(
+    'SELECT id, content_hash FROM documents WHERE workspace_id = $1 AND archived_at IS NULL',
+    [workspaceId]
+  );
+  const hashById = new Map(docs.map((d) => [d.id, d.content_hash]));
+
+  const zero: IndexStatus = {
+    document_count: docs.length,
+    indexed_document_count: 0,
+    current_document_count: 0,
+    stale_document_count: 0,
+    failed_document_count: 0,
+    chunk_count: 0,
+    embedded_chunk_count: 0,
+  };
+
+  let status;
   try {
-    return await embedChunks(chunks);
+    status = await getLightRAGIndexStatus(workspaceId);
   } catch (err) {
-    // eslint-disable-next-line no-console
-    console.warn('Embedding failed, continuing without vector index', err);
-    return chunks.map(() => null);
+    return zero;
+  }
+
+  const statusDocs = status.documents ?? [];
+  const indexed = statusDocs.filter((d) => String(d.status).toLowerCase() === 'processed');
+  const failed = statusDocs.filter((d) => String(d.status).toLowerCase() === 'failed');
+  const current = indexed.filter((d) => hashById.get(d.document_id) === d.content_hash).length;
+  const stale = indexed.filter((d) => {
+    const canonicalHash = hashById.get(d.document_id);
+    return canonicalHash !== undefined && canonicalHash !== d.content_hash;
+  }).length;
+  const chunkCount = indexed.reduce((sum, d) => sum + (d.chunks_count ?? 0), 0);
+
+  return {
+    document_count: docs.length,
+    indexed_document_count: indexed.length,
+    current_document_count: current,
+    stale_document_count: stale,
+    failed_document_count: failed.length,
+    chunk_count: chunkCount,
+    embedded_chunk_count: chunkCount,
+  };
+}
+
+export async function getDocumentIndexStatus(workspaceId: string, documentId: string) {
+  const { rows: docRows } = await pool.query<DocumentRow>(
+    'SELECT id, content_hash, archived_at FROM documents WHERE workspace_id = $1 AND id = $2',
+    [workspaceId, documentId]
+  );
+  const doc = docRows[0];
+  if (!doc) return null;
+
+  let status;
+  try {
+    status = await getLightRAGIndexStatus(workspaceId);
+  } catch (err) {
+    return { document_id: doc.id, chunk_count: 0, embedded_chunk_count: 0, stale: false, failed: false };
+  }
+
+  const ragDoc = status.documents?.find((d) => d.document_id === documentId);
+  if (!ragDoc) {
+    return { document_id: doc.id, chunk_count: 0, embedded_chunk_count: 0, stale: false, failed: false };
+  }
+
+  const statusName = String(ragDoc.status).toLowerCase();
+  const failed = statusName === 'failed';
+  const stale = !failed && statusName === 'processed' && ragDoc.content_hash !== undefined && ragDoc.content_hash !== doc.content_hash;
+  const chunkCount = ragDoc.chunks_count ?? 0;
+  const embeddedChunkCount = statusName === 'processed' ? chunkCount : 0;
+
+  return {
+    document_id: doc.id,
+    chunk_count: chunkCount,
+    embedded_chunk_count: embeddedChunkCount,
+    stale,
+    failed,
+  };
+}
+
+export async function restoreDocument(workspaceId: string, documentId: string): Promise<DocumentRow> {
+  const { rows } = await pool.query<DocumentRow>(
+    `UPDATE documents SET archived_at = NULL
+     WHERE workspace_id = $1 AND id = $2
+     RETURNING id, workspace_id, path, title, content, frontmatter, content_hash, archived_at, created_at, updated_at`,
+    [workspaceId, documentId]
+  );
+  if (!rows[0]) throw new Error('Document not found');
+  const doc = rows[0];
+  await safeIndexDocument(workspaceId, doc.id, doc.path, doc.content, doc.content_hash);
+  return doc;
+}
+
+async function withTx<T>(fn: (client: PoolClient) => Promise<T>): Promise<T> {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const result = await fn(client);
+    await client.query('COMMIT');
+    return result;
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    throw err;
+  } finally {
+    client.release();
   }
 }
 
@@ -394,117 +542,4 @@ async function getDocumentByPathWithClient(client: PoolClient, workspaceId: stri
     [workspaceId, normalized]
   );
   return rows[0] ?? null;
-}
-
-export async function duplicateDocument(workspaceId: string, documentId: string): Promise<DocumentRow> {
-  const existing = await getDocument(workspaceId, documentId);
-  if (!existing) throw new Error('Document not found');
-
-  const parsed = parseDocumentContent(existing.content);
-  const chunks = generateChunks(parsed.body);
-  const chunkEmbeddings = await safeEmbedChunks(chunks);
-
-  return withTx(async (client) => {
-    const newPath = await uniqueDuplicatePath(client, workspaceId, existing.path);
-    const title = computeTitle(parsed.frontmatter, newPath);
-    const { rows } = await client.query<DocumentRow>(
-      `INSERT INTO documents (workspace_id, path, title, content, frontmatter, content_hash, search_vector)
-       VALUES ($1, $2, $3, $4, $5, $6, to_tsvector('english', coalesce($3, '') || ' ' || $4))
-       RETURNING id, workspace_id, path, title, content, frontmatter, content_hash, archived_at, created_at, updated_at`,
-      [workspaceId, newPath, title, existing.content, JSON.stringify(parsed.frontmatter), hashContent(existing.content)]
-    );
-    const document = rows[0];
-    await insertRevision(client, document.id, existing.content, document.content_hash);
-    await syncLinks(client, workspaceId, document.id, existing.content);
-    await resolveBacklinks(client, workspaceId, document.id, document.path);
-    await syncChunks(client, workspaceId, document.id, chunks, chunkEmbeddings, document.content_hash);
-    return document;
-  });
-}
-
-export async function archiveDocument(workspaceId: string, documentId: string): Promise<DocumentRow> {
-  const { rows } = await pool.query<DocumentRow>(
-    `UPDATE documents SET archived_at = now()
-     WHERE workspace_id = $1 AND id = $2
-     RETURNING id, workspace_id, path, title, content, frontmatter, content_hash, archived_at, created_at, updated_at`,
-    [workspaceId, documentId]
-  );
-  if (!rows[0]) throw new Error('Document not found');
-  return rows[0];
-}
-
-export interface IndexStatus {
-  document_count: number;
-  indexed_document_count: number;
-  current_document_count: number;
-  stale_document_count: number;
-  failed_document_count: number;
-  chunk_count: number;
-  embedded_chunk_count: number;
-}
-
-export async function getWorkspaceIndexStatus(workspaceId: string): Promise<IndexStatus> {
-  const { rows } = await pool.query<IndexStatus>(
-    `SELECT
-       COUNT(DISTINCT d.id)::int AS document_count,
-       COUNT(DISTINCT CASE WHEN dc.id IS NOT NULL THEN d.id END)::int AS indexed_document_count,
-       COUNT(DISTINCT CASE WHEN dc.id IS NOT NULL AND dc.content_hash = d.content_hash THEN d.id END)::int AS current_document_count,
-       COUNT(DISTINCT CASE WHEN dc.id IS NOT NULL AND dc.content_hash <> d.content_hash THEN d.id END)::int AS stale_document_count,
-       COUNT(DISTINCT CASE WHEN dc.id IS NOT NULL AND dc.embedding IS NULL THEN d.id END)::int AS failed_document_count,
-       COUNT(dc.id)::int AS chunk_count,
-       COUNT(CASE WHEN dc.embedding IS NOT NULL THEN 1 END)::int AS embedded_chunk_count
-     FROM documents d
-     LEFT JOIN document_chunks dc ON dc.document_id = d.id
-     WHERE d.workspace_id = $1 AND d.archived_at IS NULL`,
-    [workspaceId]
-  );
-  return rows[0];
-}
-
-export async function getDocumentIndexStatus(workspaceId: string, documentId: string) {
-  const { rows: docRows } = await pool.query<DocumentRow>(
-    'SELECT id, content_hash FROM documents WHERE workspace_id = $1 AND id = $2 AND archived_at IS NULL',
-    [workspaceId, documentId]
-  );
-  const doc = docRows[0];
-  if (!doc) return null;
-
-  const { rows } = await pool.query(
-    `SELECT content_hash, embedding IS NOT NULL AS has_embedding
-     FROM document_chunks
-     WHERE document_id = $1`,
-    [documentId]
-  );
-  const chunks = rows as { content_hash: string; has_embedding: boolean }[];
-  const chunk_count = chunks.length;
-  const embedded_chunk_count = chunks.filter((c) => c.has_embedding).length;
-  const stale = chunk_count > 0 && chunks.some((c) => c.content_hash !== doc.content_hash);
-  const failed = chunk_count > 0 && embedded_chunk_count === 0;
-  return { document_id: doc.id, chunk_count, embedded_chunk_count, stale, failed };
-}
-
-export async function restoreDocument(workspaceId: string, documentId: string): Promise<DocumentRow> {
-  const { rows } = await pool.query<DocumentRow>(
-    `UPDATE documents SET archived_at = NULL
-     WHERE workspace_id = $1 AND id = $2
-     RETURNING id, workspace_id, path, title, content, frontmatter, content_hash, archived_at, created_at, updated_at`,
-    [workspaceId, documentId]
-  );
-  if (!rows[0]) throw new Error('Document not found');
-  return rows[0];
-}
-
-async function withTx<T>(fn: (client: PoolClient) => Promise<T>): Promise<T> {
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
-    const result = await fn(client);
-    await client.query('COMMIT');
-    return result;
-  } catch (err) {
-    await client.query('ROLLBACK').catch(() => {});
-    throw err;
-  } finally {
-    client.release();
-  }
 }

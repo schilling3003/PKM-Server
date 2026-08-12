@@ -489,19 +489,20 @@ clean shutdown.
 **Regressions**: None.
 **Blockers**: None.
 
-## Round 2.0 — LightRAG integration remediation
+## Round 2.0 — Workstream 24: LightRAG integration
 
-**Date**: 2026-08-11
+**Date**: 2026-08-12
 **Coordinator**: Devin
-**Verdict**: In progress — correcting v1's deviation from AD-003.
-- v1 shipped with a pgvector-only semantic + wikilink graph implementation despite `docs/DECISIONS.md` AD-003 specifying LightRAG.
-- This round replaces the custom `pgvector`/manual-link pipeline with `lightrag-hku==1.5.6` using `PGKVStorage`, `PGVectorStorage`, `PGDocStatusStorage`, and `PGTableGraphStorage` on the existing `pgvector/pgvector:pg16` image (no Apache AGE extension).
-- Per-workspace `LightRAG` instances will use the workspace UUID as the `workspace` field for strict tenant isolation.
-- No-LLM fallback preserved: when `LLM_BASE_URL`/`LLM_API_KEY` are unset, indexing skips KG extraction (`process_options="F!"`) and `/ask`/`/search` fall back to grounded vector-chunk retrieval.
-- Canonical Markdown remains the source of truth; LightRAG data is a projection.
-- Child session `child-lightrag` will implement `apps/ai` endpoints (`/index`, `/query`, `/ask`, `/delete`, `/graph`, `/index-status`) and update `apps/api` search/ask/graph/document wiring.
-**Evidence**: `docs/WORKSTREAMS.md` updated; child session created with detailed implementation prompt.
-**Decisive gap**: LightRAG not yet integrated.
-**Changes**: `docs/WORKSTREAMS.md`, `docs/GAUNTLET_LOG.md`.
+**Verdict**: PASS — LightRAG-backed AI service integrated and all quality gates green.
+- Replaced the custom `pgvector`/`document_chunks` + manual wikilink graph pipeline with `lightrag-hku==1.5.6` using `PGKVStorage`, `PGVectorStorage`, `PGDocStatusStorage`, and `PGTableGraphStorage` on the existing `pgvector/pgvector:pg16` image (no Apache AGE or Neo4j).
+- `apps/ai` is now a FastAPI service exposing `POST /index`, `DELETE /index/{workspace_id}/{document_id}`, `POST /query`, `POST /ask`, `GET /graph/{workspace_id}`, `GET /index-status/{workspace_id}`, plus `/health` and `/ready`.
+- Per-workspace `LightRAG` instances use the workspace UUID as the `workspace` field and are cached with LRU eviction; `finalize_storages()` is awaited before eviction.
+- `apps/api` delegates `search.ts`, `ask.ts`, `graph.ts`, `documents.ts`, and `propose.ts` to `apps/ai`; `apps/web` graph click handling skips entity nodes.
+- No-LLM fallback preserved: when `LLM_BASE_URL`/`LLM_API_KEY` are unset, indexing skips KG extraction (`process_options="F!"`) and `/ask` returns grounded snippets with a warning.
+- Canonical Markdown remains the source of truth; LightRAG data is a projection. `content_hash` and full `file_path` are aligned with the API's canonical values.
+- Stub embedding uses a stable MD5-based token-count vector for repeatable local smoke tests.
+**Evidence**: `pnpm -r typecheck`, `pnpm -r lint`, `pnpm -r build`, and `pnpm -r test` pass; `pnpm audit --prod` reports no known vulnerabilities; `docker compose up -d --wait` shows all services healthy; `curl` smoke tests verify document create, `/search` semantic retrieval, `/ask` no-LLM fallback, `/graph` (manual wikilink + LightRAG entity merge), `/index-status`, delete note with index-status/graph updates, workspace isolation, and no-LLM behavior.
+**Decisive gap**: None.
+**Changes**: `apps/ai/src/main.py`, `apps/ai/requirements.txt`, `apps/api/src/ai.ts`, `apps/api/src/ask.ts`, `apps/api/src/search.ts`, `apps/api/src/graph.ts`, `apps/api/src/documents.ts`, `apps/api/src/propose.ts`, `apps/api/test/setup.ts`, `apps/api/test/propose.test.ts`, `apps/web/app/workspaces/[id]/graph/page.tsx`, `apps/web/app/workspaces/[id]/_components/GraphView.tsx`, `.env.example`, `docs/DECISIONS.md` (AD-003), `docs/WORKSTREAMS.md`, `docs/GAUNTLET_LOG.md`.
 **Regressions**: None.
 **Blockers**: None.

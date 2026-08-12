@@ -1,7 +1,7 @@
 import { parseCanonical } from '@pkm/markdown';
 import { getDocument, getDocumentByPath, updateDocument, type DocumentRow } from './documents.js';
 import { hybridSearch } from './search.js';
-import { generateAnswer, type GenerateAnswerResult } from './ai.js';
+import { askWithLightRAG, type AskResult } from './ai.js';
 
 export interface Citation {
   id: string;
@@ -29,7 +29,6 @@ interface ProposeRequest {
 const MAX_TARGET_CONTENT_CHARS = 8_000;
 const MAX_SEARCH_RESULTS = 4;
 const MAX_SNIPPET_CHARS = 600;
-const MAX_CONTEXT_CHARS = 12_000;
 
 function normalizePath(path: string): string {
   if (!path.endsWith('.md')) return `${path}.md`;
@@ -52,27 +51,11 @@ function extractJson(text: string): string | null {
   return text.trim();
 }
 
-function buildContext(target: DocumentRow, searchResults: Awaited<ReturnType<typeof hybridSearch>>): string {
-  const targetContext = truncate(target.content, MAX_TARGET_CONTENT_CHARS);
-  let context = `Target note: ${target.path}\n\n\`\`\`markdown\n${targetContext}\n\`\`\``;
-
-  const otherResults = searchResults.filter((r) => r.id !== target.id).slice(0, MAX_SEARCH_RESULTS);
-  if (otherResults.length > 0) {
-    context += '\n\nRelated notes from the same workspace:\n';
-    for (let i = 0; i < otherResults.length; i++) {
-      const r = otherResults[i];
-      context += `\n[${i + 1}] ${r.path}: ${r.title ?? r.path}\n${truncate(r.content, MAX_SNIPPET_CHARS)}\n`;
-    }
-  }
-
-  return truncate(context, MAX_CONTEXT_CHARS);
-}
-
 function buildQuestion(instruction: string, originalPath: string): string {
   return [
     `Instruction: ${instruction}`,
     '',
-    `Edit the target note (${originalPath}) based ONLY on the notes above.`,
+    `Edit the target note (${originalPath}) based ONLY on the notes retrieved from the same workspace.`,
     'Respond with a single JSON object containing exactly these fields:',
     '  "path": the final note path (string),',
     '  "content": the complete canonical Markdown content with YAML frontmatter (string),',
@@ -147,12 +130,11 @@ export async function proposeEdit(workspaceId: string, request: ProposeRequest):
   // the model can find related notes in the same workspace.
   const searchResults = await hybridSearch(workspaceId, instruction, MAX_SEARCH_RESULTS + 1);
   const citations = buildCitations(target, searchResults);
-  const context = buildContext(target, searchResults);
   const question = buildQuestion(instruction, originalPath);
 
-  let data: GenerateAnswerResult;
+  let data: AskResult;
   try {
-    data = await generateAnswer({ context, question });
+    data = await askWithLightRAG(workspaceId, question);
   } catch (err) {
     const error = new Error(
       err instanceof Error ? `AI service unavailable: ${err.message}` : 'AI service unavailable'
@@ -161,7 +143,7 @@ export async function proposeEdit(workspaceId: string, request: ProposeRequest):
     throw error;
   }
 
-  if (data.noLlm || data.warning) {
+  if (data.warning) {
     const warning = data.warning ?? 'No configured language model.';
     return {
       originalPath,

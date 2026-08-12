@@ -33,8 +33,14 @@ dialect; embeddings could migrate to a dedicated vector store later.
 
 ## AD-003: Semantic graph and retrieval — LightRAG
 
-**Decision**: Use LightRAG for entity extraction, semantic retrieval, and the
-derived knowledge graph, backed by PostgreSQL.
+**Decision**: Use `lightrag-hku==1.5.6` for entity extraction, semantic
+retrieval, and the derived knowledge graph, backed by PostgreSQL with the
+`pgvector` extension. Each workspace uses a dedicated `LightRAG` instance whose
+`workspace` parameter is set to the workspace UUID, enforcing strict tenant
+isolation in all storage tables. Instances are cached with LRU eviction and
+`finalize_storages()` is awaited before eviction. Storage backends are
+`PGKVStorage`, `PGVectorStorage`, `PGTableGraphStorage`, and
+`PGDocStatusStorage`; no Apache AGE or Neo4j extension is required.
 
 **Alternatives**: Building a custom graph/RAG pipeline.
 
@@ -44,7 +50,9 @@ backends. The application treats LightRAG records as projections of canonical
 Markdown.
 
 **Reversibility**: High. The canonical document store is independent of LightRAG
-schema.
+schema. The previous pgvector/tsvector `document_chunks` pipeline has been
+removed from the API ingestion path; canonical documents and wikilink edges
+remain untouched.
 
 ## AD-004: Collaborative editing — Yjs + Hocuspocus
 
