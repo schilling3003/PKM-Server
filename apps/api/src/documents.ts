@@ -473,7 +473,8 @@ export async function getDocumentIndexStatus(workspaceId: string, documentId: st
   try {
     status = await getLightRAGIndexStatus(workspaceId);
   } catch (err) {
-    return { document_id: doc.id, chunk_count: 0, embedded_chunk_count: 0, stale: false, failed: false };
+    // If the AI service is unreachable we cannot confirm the index is current, so report failed.
+    return { document_id: doc.id, chunk_count: 0, embedded_chunk_count: 0, stale: false, failed: true };
   }
 
   const ragDoc = status.documents?.find((d) => d.document_id === documentId);
