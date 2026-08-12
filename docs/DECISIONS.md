@@ -41,6 +41,9 @@ isolation in all storage tables. Instances are cached with LRU eviction and
 `finalize_storages()` is awaited before eviction. Storage backends are
 `PGKVStorage`, `PGVectorStorage`, `PGTableGraphStorage`, and
 `PGDocStatusStorage`; no Apache AGE or Neo4j extension is required.
+`POST /index` deletes an existing LightRAG document by its PKM `document_id`
+before enqueuing the new revision, because LightRAG treats a repeated
+`file_path` as a duplicate and refuses to overwrite the previous record.
 
 **Alternatives**: Building a custom graph/RAG pipeline.
 

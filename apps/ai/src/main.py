@@ -385,9 +385,27 @@ class IndexResponse(BaseModel):
     status: str
 
 
+async def _delete_existing_doc(rag: LightRAG, document_id: str) -> None:
+    """Remove a document from LightRAG before re-indexing an updated version.
+
+    LightRAG treats a repeated file_path as a duplicate, so we must delete the
+    old record first. Not-found is ignored; pipeline-busy or actual failures raise.
+    """
+    try:
+        result = await rag.adelete_by_doc_id(document_id)
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail=f"LightRAG delete failed: {exc}") from exc
+    if result.status in ("success", "not_found"):
+        return
+    if result.status == "not_allowed":
+        raise HTTPException(status_code=503, detail=f"LightRAG delete not allowed: {result.message}")
+    raise HTTPException(status_code=500, detail=f"LightRAG delete failed: {result.message}")
+
+
 @app.post("/index", response_model=IndexResponse, dependencies=[Depends(verify_api_key)])
 async def index(req: IndexRequest):
     rag = await _get_rag(req.workspace_id)
+    await _delete_existing_doc(rag, req.document_id)
     process_options = "F!" if (req.skip_kg or not _has_llm()) else "F"
     track_id = await rag.apipeline_enqueue_documents(
         [req.content],

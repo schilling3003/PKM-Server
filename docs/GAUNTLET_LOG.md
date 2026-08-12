@@ -504,5 +504,21 @@ clean shutdown.
 **Evidence**: `pnpm -r typecheck`, `pnpm -r lint`, `pnpm -r build`, `pnpm -r test`, and `pnpm --filter @pkm/api test:resilience` pass; `pnpm audit --prod` reports no known vulnerabilities; `docker compose up -d --wait` shows all services healthy; `apps/web/scripts/axe-audit.js` reports no critical or serious violations on `/`, `/login`, editor, `/ask`, `/diff`, `/attachments`, `/graph`, and `/okf`; `curl` smoke tests on `devin/pkm-lightrag-coord` verified document create, `/search` semantic retrieval, `/ask` no-LLM fallback, `/graph` (manual wikilink + LightRAG entity merge), entity nodes no longer navigate, `/index-status`, delete note with index-status/graph updates, workspace isolation, attachments, OKF export, and no-LLM behavior. The coordinator fixed an invalid `numpy==2.5.2` pin to `numpy==2.2.6`, fixed `getDocumentIndexStatus` to report `failed` when the LightRAG `/index-status` call fails, added an explicit `source` (document/entity) field to `GraphNode` so the UI cannot navigate to AI-derived entities, and dropped the obsolete `document_chunks` table via migration `0004_drop_document_chunks.sql`. The initial Gauntlet critic `343af9d057904f90bab47a6fd9c6e2e3` and tester `9512ffbbc4fa4a8597abe2add6cb201c` were terminated; fresh critic `eba378a4e69245b6aab275a5fadc8f99` and end-to-end tester `e676947454264a56a348f22124016e81` are reviewing the updated branch.
 **Decisive gap**: None.
 **Changes**: `apps/ai/src/main.py`, `apps/ai/requirements.txt`, `apps/api/src/ai.ts`, `apps/api/src/ask.ts`, `apps/api/src/search.ts`, `apps/api/src/graph.ts`, `apps/api/src/documents.ts`, `apps/api/src/propose.ts`, `apps/api/src/migrations/0004_drop_document_chunks.sql`, `apps/api/test/setup.ts`, `apps/api/test/propose.test.ts`, `apps/api/test/resilience.test.ts`, `apps/api/test/auth.test.ts`, `apps/api/test/integration.test.ts`, `apps/api/test/rate-limit.test.ts`, `apps/api/test/attachments.test.ts`, `apps/web/app/workspaces/[id]/graph/page.tsx`, `apps/web/app/workspaces/[id]/_components/GraphView.tsx`, `apps/web/lib/api.ts`, `apps/web/lib/graph.ts`, `.env.example`, `docs/DECISIONS.md` (AD-003, AD-019, AD-021), `docs/WORKSTREAMS.md`, `docs/GAUNTLET_LOG.md`.
+**Regressions**: The end-to-end tester later found a release-blocking regression: editing a note produced a failed `dup-*` LightRAG document because `POST /index` reused the same `file_path` without deleting the previous record.
+**Blockers**: None.
+
+## Round 2.1 — LightRAG index update regression fix
+
+**Date**: 2026-08-13
+**Coordinator**: Devin
+**Verdict**: PASS — release-blocking regression fixed and all gates green; awaiting fresh critic/tester.
+- The fresh end-to-end tester on `devin/pkm-lightrag-coord` found that editing `cat.md` caused LightRAG to fail with `File name already exists` and left a failed `dup-*` document; `/ask` then could not answer questions about the newly added content.
+- Root cause: `apipeline_enqueue_documents` treats a repeated `file_path` as a duplicate and refuses to overwrite an existing document.
+- Fix: `apps/ai/src/main.py` `POST /index` now calls `rag.adelete_by_doc_id(document_id)` before enqueuing the new content. `not_found` is ignored; `not_allowed` or other failures surface as HTTP 503/500.
+- Re-verified locally: create `cat.md`, `/ask` about cats, edit `cat.md` to add "They eat meat and fish.", `/ask` "What do cats eat?" returns the updated snippet, `/index-status` shows one document and zero failed documents.
+- Re-ran `pnpm -r typecheck`, `pnpm -r lint`, `pnpm -r build`, `pnpm -r test`, `RUN_RESILIENCE_TESTS=1 pnpm --filter @pkm/api test:resilience`, and `pnpm audit --prod`; all pass.
+**Evidence**: `pnpm -r typecheck`, `pnpm -r lint`, `pnpm -r build`, `pnpm -r test`, and `pnpm --filter @pkm/api test:resilience` pass; `pnpm audit --prod` reports no known vulnerabilities; local `curl` smoke confirms update → `/ask` reflects new content and `failed_document_count` stays 0.
+**Decisive gap**: None.
+**Changes**: `apps/ai/src/main.py`, `docs/DECISIONS.md`, `docs/GAUNTLET_LOG.md`, `docs/WORKSTREAMS.md`.
 **Regressions**: None.
 **Blockers**: None.
