@@ -7,6 +7,7 @@ export interface GraphNode {
   path: string;
   title: string | null;
   type: string;
+  source: 'document' | 'entity';
 }
 
 export interface GraphEdge {
@@ -39,6 +40,8 @@ export async function getWorkspaceGraph(workspaceId: string): Promise<GraphData>
     [workspaceId]
   );
 
+  documents.forEach((d) => { d.source = 'document'; });
+
   const nodeIds = new Set(documents.map((d) => d.id));
   const edgeKeys = new Set<string>();
   const edges: GraphEdge[] = [];
@@ -65,6 +68,7 @@ export async function getWorkspaceGraph(workspaceId: string): Promise<GraphData>
         path: '',
         title: node.id,
         type: String(props.entity_type ?? (node.labels?.[0] || 'entity')),
+        source: 'entity',
       });
     }
     for (const edge of ragGraph.edges ?? []) {

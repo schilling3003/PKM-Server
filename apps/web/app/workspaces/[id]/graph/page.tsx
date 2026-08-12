@@ -53,7 +53,7 @@ export default function GraphPage() {
   }, [workspace]);
 
   function handleNodeClick(node: GraphNode) {
-    if (node.type === 'entity') return;
+    if (node.source === 'entity' || node.type === 'entity') return;
     router.push(`/workspaces/${workspaceId}?doc=${node.id}`);
   }
 
