@@ -70,3 +70,16 @@ PUPPETEER_EXECUTABLE_PATH=/home/ubuntu/.local/bin/google-chrome \
 ```
 
 Expected: `PASSED: no critical or serious violations found`.
+
+## Resilience-test ordering
+
+The resilience suite (`test:resilience`) spawns its own API child process on port 4000 with a mock AI server. Run it **before** starting the long-running AI/API/web dev servers, or stop those servers first, to avoid a port conflict that makes the AI-unavailable test time out.
+
+## Pointer-harness workarounds
+
+Several small web UI controls (`Register`, `New note`, `Save`, `Ask`, `Download`, graph node click, `Logout`) may not register `computer` mouse clicks in this harness. Fallbacks that work:
+
+- Keyboard `Tab`/`Enter` for form fields and toggle links.
+- Direct URL navigation for pages (`/login`, `/workspaces/{id}/ask`, `/workspaces/{id}/graph`, etc.).
+- Address-bar `javascript:document.querySelector('form').requestSubmit()` to trigger form submission when the submit button is unreachable.
+- API calls for setup/assertions where the product exposes the same endpoints.
