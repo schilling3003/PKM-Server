@@ -488,3 +488,20 @@ clean shutdown.
 **Changes**: `apps/web/app/workspaces/[id]/page.tsx`, `docs/TEST_REPORT_final_v3.md`, `docs/CRITIC_REPORT_final_v3.md`, `docs/WORKSTREAMS.md`, `docs/GAUNTLET_LOG.md`.
 **Regressions**: None.
 **Blockers**: None.
+
+## Round 2.0 — LightRAG integration remediation
+
+**Date**: 2026-08-11
+**Coordinator**: Devin
+**Verdict**: In progress — correcting v1's deviation from AD-003.
+- v1 shipped with a pgvector-only semantic + wikilink graph implementation despite `docs/DECISIONS.md` AD-003 specifying LightRAG.
+- This round replaces the custom `pgvector`/manual-link pipeline with `lightrag-hku==1.5.6` using `PGKVStorage`, `PGVectorStorage`, `PGDocStatusStorage`, and `PGTableGraphStorage` on the existing `pgvector/pgvector:pg16` image (no Apache AGE extension).
+- Per-workspace `LightRAG` instances will use the workspace UUID as the `workspace` field for strict tenant isolation.
+- No-LLM fallback preserved: when `LLM_BASE_URL`/`LLM_API_KEY` are unset, indexing skips KG extraction (`process_options="F!"`) and `/ask`/`/search` fall back to grounded vector-chunk retrieval.
+- Canonical Markdown remains the source of truth; LightRAG data is a projection.
+- Child session `child-lightrag` will implement `apps/ai` endpoints (`/index`, `/query`, `/ask`, `/delete`, `/graph`, `/index-status`) and update `apps/api` search/ask/graph/document wiring.
+**Evidence**: `docs/WORKSTREAMS.md` updated; child session created with detailed implementation prompt.
+**Decisive gap**: LightRAG not yet integrated.
+**Changes**: `docs/WORKSTREAMS.md`, `docs/GAUNTLET_LOG.md`.
+**Regressions**: None.
+**Blockers**: None.
