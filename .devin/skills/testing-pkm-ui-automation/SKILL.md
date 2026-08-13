@@ -59,5 +59,6 @@ Use `page.type`, `page.click`, `page.select`, and keyboard shortcuts (`page.keyb
 
 ## Known caveats
 
-- With no LLM configured, `/ask` returns a safe no-LLM answer with citations and `/propose` returns 422 because the AI stub response is not valid JSON. The UI should surface those gracefully.
+- With no LLM configured, `/ask` returns a safe no-LLM answer with citations. `POST /propose` returns `200 OK` with `originalContent === proposedContent`, a `warning` such as `No LLM is configured...`, and `citations` pointing at the most relevant notes. The UI should surface the warning and disable **Apply** when no changes were proposed.
 - The Diff page pre-selects the note when opened from the workspace **Propose** button or `Ctrl+Shift+D` (`/workspaces/[id]/diff?documentId=...`); the instruction input remains editable so the user can type an instruction and click **Propose edit**.
+- Auto-running `/propose` only happens when **both** `documentId` and `instruction` query parameters are present (`/workspaces/[id]/diff?documentId=...&instruction=...`). In that case the select/input/button are disabled while the request is in flight, then the diff/apply UI appears.
