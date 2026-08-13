@@ -82,6 +82,7 @@ export async function getWorkspaceGraph(workspaceId: string): Promise<GraphData>
       path: d.path,
       title: d.title,
       type: typeof d.frontmatter.type === 'string' ? d.frontmatter.type : 'Note',
+      source: 'document' as const,
     })),
     edges,
   };

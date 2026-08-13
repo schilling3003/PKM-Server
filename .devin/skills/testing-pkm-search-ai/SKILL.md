@@ -1,6 +1,6 @@
 ---
 name: testing-pkm-search-ai
-description: End-to-end testing notes for the PKM v1 search/AI branch, including CSP caveats, rate-limit configuration, and golden-path commands.
+description: End-to-end testing notes for the PKM v1 search/AI / LightRAG branch, including CSP caveats, rate-limit configuration, and golden-path commands.
 ---
 
 # Testing PKM v1 search/AI branch
@@ -70,3 +70,28 @@ Restart the API after changing `.env`.
 - Axe audit: set `AXE_AUDIT_URL=http://localhost:3000 AXE_API_URL=http://localhost:4000 AXE_REPORT_FILE=/tmp/axe-report.json PUPPETEER_EXECUTABLE_PATH=/home/ubuntu/.local/bin/google-chrome` before `pnpm --filter @pkm/web test:axe`.
 - OKF import payload needs `concepts[].metadata.type` and `concepts[].document.body`; example: `'{"version":"0.2","concepts":[{"path":"rabbit.md","metadata":{"type":"Note"},"document":{"frontmatter":{"type":"Note"},"body":"A rabbit. See [[cat|the cat]]."}}]}'`.
 - Kill stale processes before re-running: `pkill -f 'next-server|uvicorn|node dist/index.js|tsx'`.
+
+## LightRAG integration branch (`devin/pkm-lightrag-integration`)
+
+### Setup
+- Same base setup as the search/AI branch: `.env` from `.env.example`, `EMBEDDING_PROVIDER=stub`, no `LLM_BASE_URL`/`LLM_API_KEY`.
+- Start AI: `cd apps/ai && .venv/bin/uvicorn src.main:app --host 127.0.0.1 --port 8000` (or `--host 0.0.0.0`).
+- Start API: `pnpm --filter @pkm/api start` (or `dev`).
+- Start web: `env NEXT_BUILD_OUTPUT= pnpm --filter @pkm/web start`.
+- Health checks: `curl http://127.0.0.1:8000/health`, `curl http://127.0.0.1:8000/ready`, `curl http://localhost:4000/health`.
+
+### Verification flow
+1. Register a local user at `/login` (OIDC is disabled when env vars are empty).
+2. If the home-page workspace-creation form does not accept typed input in the test harness, seed via the browser console:
+   ```js
+   fetch('/api/workspaces', {method:'POST', headers:{'content-type':'application/json'}, body:JSON.stringify({name:'Animals'}), credentials:'same-origin'})
+     .then(r=>r.json()).then(ws=>
+       fetch(`/api/workspaces/${ws.id}/documents`, {method:'POST', headers:{'content-type':'application/json'}, body:JSON.stringify({path:'notes/animals.md', content:'---\ntype: Note\n---\n\nDogs are loyal animals. Cats are independent.'}), credentials:'same-origin'})
+       .then(r=>r.json()).then(d=> location.href=`/workspaces/${ws.id}?doc=${d.id}`));
+   ```
+3. Trigger the search palette with `Ctrl+Shift+F` or `document.querySelector('button[aria-label="Open search"]').click()`; set the query value and dispatch `input` if the harness cannot type.
+4. Ask: `/workspaces/{id}/ask` with a relevant question should show an amber warning (`No LLM is configured...`) and grounded citations.
+5. Graph: `/workspaces/{id}/graph` should show the manual document graph (not LightRAG KG without LLM); clicking a note node navigates to `/workspaces/{id}?doc=...`.
+6. Propose (`/workspaces/{id}/diff?documentId={id}&instruction=...`): with no LLM it preserves original content, disables Apply, and returns a warning such as `No LLM is configured. No relevant notes were found to summarize.`; a configured LLM is required to generate structured JSON edits.
+7. Delete a note via `DELETE /api/workspaces/{id}/documents/{docId}` (or the UI) and revisit graph to confirm `0 nodes · 0 links`.
+8. Cross-workspace isolation: create a second workspace/note and search in each workspace; results must not leak.

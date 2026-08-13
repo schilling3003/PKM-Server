@@ -81,6 +81,7 @@ describe.skipIf(!shouldRun)('resilience', () => {
     let workspaceId: string;
     let originalFetch: typeof fetch;
     let aiHealthy = true;
+    const indexedDocs = new Map<string, { status: string; chunks_count: number }>();
 
     function makeResponse(body: unknown, status = 200) {
       return new Response(JSON.stringify(body), {
@@ -92,6 +93,7 @@ describe.skipIf(!shouldRun)('resilience', () => {
     beforeEach(async () => {
       const ws = await workspaces.createWorkspace(`ai-fail-${Date.now()}`);
       workspaceId = ws.id;
+      indexedDocs.clear();
       originalFetch = globalThis.fetch;
       aiHealthy = true;
       vi.stubGlobal('fetch', vi.fn(async (url: string | Request | URL, init?: RequestInit) => {
@@ -102,6 +104,26 @@ describe.skipIf(!shouldRun)('resilience', () => {
         }
         if (u.includes('/ask')) return makeResponse({ answer: 'mock' });
         if (u.includes('/health')) return makeResponse({ status: aiHealthy ? 'ok' : 'degraded' });
+        if (u.endsWith('/index') && (init?.method ?? 'POST') === 'POST') {
+          if (!aiHealthy) throw new Error('AI service unavailable');
+          const body = init?.body ? JSON.parse(init.body.toString()) : {};
+          indexedDocs.set(body.document_id, { status: 'processed', chunks_count: 1 });
+          return makeResponse({ workspace_id: body.workspace_id, document_id: body.document_id, status: 'ok' });
+        }
+        if (u.includes('/index-status/')) {
+          if (!aiHealthy) throw new Error('AI service unavailable');
+          return makeResponse({
+            counts: { processed: indexedDocs.size },
+            documents: Array.from(indexedDocs.entries()).map(([id, meta]) => ({
+              document_id: id,
+              file_path: 'mock.md',
+              ...meta,
+            })),
+          });
+        }
+        if (u.includes('/query') || u.includes('/graph/')) {
+          return makeResponse({ chunks: [], references: [], nodes: [], edges: [] });
+        }
         return originalFetch(url as string, init);
       }));
     });

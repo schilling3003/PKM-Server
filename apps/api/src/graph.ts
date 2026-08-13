@@ -1,17 +1,21 @@
 import type { FastifyInstance } from 'fastify';
 import { pool } from './db.js';
+import { getLightRAGGraph } from './ai.js';
 
 export interface GraphNode {
   id: string;
   path: string;
   title: string | null;
   type: string;
+  source: 'document' | 'entity';
 }
 
 export interface GraphEdge {
   source: string;
   target: string;
   type: string;
+  description?: string;
+  weight?: number;
 }
 
 export interface GraphData {
@@ -20,6 +24,7 @@ export interface GraphData {
 }
 
 export async function getWorkspaceGraph(workspaceId: string): Promise<GraphData> {
+  // Manual wikilink/markdown-link graph derived from canonical documents.
   const { rows: documents } = await pool.query<GraphNode>(
     `SELECT id, path, title, COALESCE(frontmatter->>'type', 'Note') AS type
      FROM documents
@@ -35,6 +40,9 @@ export async function getWorkspaceGraph(workspaceId: string): Promise<GraphData>
     [workspaceId]
   );
 
+  documents.forEach((d) => { d.source = 'document'; });
+
+  const nodeIds = new Set(documents.map((d) => d.id));
   const edgeKeys = new Set<string>();
   const edges: GraphEdge[] = [];
 
@@ -46,6 +54,42 @@ export async function getWorkspaceGraph(workspaceId: string): Promise<GraphData>
     if (edgeKeys.has(key)) continue;
     edgeKeys.add(key);
     edges.push({ source: a, target: b, type: link.type ?? 'link' });
+  }
+
+  // Merge in LightRAG-derived entity/relationship graph, if any.
+  try {
+    const ragGraph = await getLightRAGGraph(workspaceId);
+    for (const node of ragGraph.nodes ?? []) {
+      if (nodeIds.has(node.id)) continue;
+      nodeIds.add(node.id);
+      const props = node.properties ?? {};
+      documents.push({
+        id: node.id,
+        path: '',
+        title: node.id,
+        type: String(props.entity_type ?? (node.labels?.[0] || 'entity')),
+        source: 'entity',
+      });
+    }
+    for (const edge of ragGraph.edges ?? []) {
+      const key = `${edge.source}|${edge.target}`;
+      if (edgeKeys.has(key)) continue;
+      edgeKeys.add(key);
+      const props = edge.properties ?? {};
+      edges.push({
+        source: edge.source,
+        target: edge.target,
+        type: 'relationship',
+        description: props.description ? String(props.description) : undefined,
+        weight: typeof props.weight === 'number' ? props.weight : undefined,
+      });
+    }
+  } catch (err) {
+    // If the AI service is unavailable, return the manual graph only.
+    const message = err instanceof Error ? err.message : String(err);
+    if (message.includes('unavailable')) {
+      // ignore
+    }
   }
 
   return { nodes: documents, edges };

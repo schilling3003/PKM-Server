@@ -456,7 +456,7 @@ export default function GraphView({ data, onNodeClick, theme }: GraphViewProps) 
       />
       <div className="pointer-events-none absolute bottom-3 left-3 rounded border border-border bg-card/80 p-2 text-xs text-muted-foreground backdrop-blur-sm">
         <p>Scroll to zoom · drag to pan · click to open · arrow keys + Enter when focused</p>
-        <p>{data.nodes.length} notes · {data.edges.length} links</p>
+        <p>{data.nodes.length} nodes · {data.edges.length} links</p>
       </div>
     </div>
   );

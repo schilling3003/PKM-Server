@@ -244,6 +244,7 @@ export interface GraphNode {
   path: string;
   title: string | null;
   type: string;
+  source: 'document' | 'entity';
 }
 
 export interface GraphEdge {

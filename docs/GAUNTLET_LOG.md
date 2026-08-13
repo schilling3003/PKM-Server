@@ -488,3 +488,69 @@ clean shutdown.
 **Changes**: `apps/web/app/workspaces/[id]/page.tsx`, `docs/TEST_REPORT_final_v3.md`, `docs/CRITIC_REPORT_final_v3.md`, `docs/WORKSTREAMS.md`, `docs/GAUNTLET_LOG.md`.
 **Regressions**: None.
 **Blockers**: None.
+
+## Round 2.0 — Workstream 24: LightRAG integration
+
+**Date**: 2026-08-12
+**Coordinator**: Devin
+**Verdict**: PASS — LightRAG-backed AI service integrated and coordinator gates green; fresh Gauntlet critic and end-to-end tester spawned to confirm.
+- Replaced the custom `pgvector`/`document_chunks` + manual wikilink graph pipeline with `lightrag-hku==1.5.6` using `PGKVStorage`, `PGVectorStorage`, `PGDocStatusStorage`, and `PGTableGraphStorage` on the existing `pgvector/pgvector:pg16` image (no Apache AGE or Neo4j).
+- `apps/ai` is now a FastAPI service exposing `POST /index`, `DELETE /index/{workspace_id}/{document_id}`, `POST /query`, `POST /ask`, `GET /graph/{workspace_id}`, `GET /index-status/{workspace_id}`, plus `/health` and `/ready`.
+- Per-workspace `LightRAG` instances use the workspace UUID as the `workspace` field and are cached with LRU eviction; `finalize_storages()` is awaited before eviction.
+- `apps/api` delegates `search.ts`, `ask.ts`, `graph.ts`, `documents.ts`, and `propose.ts` to `apps/ai`; `apps/web` graph click handling skips entity nodes.
+- No-LLM fallback preserved: when `LLM_BASE_URL`/`LLM_API_KEY` are unset, indexing skips KG extraction (`process_options="F!"`) and `/ask` returns grounded snippets with a warning.
+- Canonical Markdown remains the source of truth; LightRAG data is a projection. `content_hash` and full `file_path` are aligned with the API's canonical values.
+- Stub embedding uses a stable MD5-based token-count vector for repeatable local smoke tests.
+**Evidence**: `pnpm -r typecheck`, `pnpm -r lint`, `pnpm -r build`, `pnpm -r test`, and `pnpm --filter @pkm/api test:resilience` pass; `pnpm audit --prod` reports no known vulnerabilities; `docker compose up -d --wait` shows all services healthy; `apps/web/scripts/axe-audit.js` reports no critical or serious violations on `/`, `/login`, editor, `/ask`, `/diff`, `/attachments`, `/graph`, and `/okf`; `curl` smoke tests on `devin/pkm-lightrag-coord` verified document create, `/search` semantic retrieval, `/ask` no-LLM fallback, `/graph` (manual wikilink + LightRAG entity merge), entity nodes no longer navigate, `/index-status`, delete note with index-status/graph updates, workspace isolation, attachments, OKF export, and no-LLM behavior. The coordinator fixed an invalid `numpy==2.5.2` pin to `numpy==2.2.6`, fixed `getDocumentIndexStatus` to report `failed` when the LightRAG `/index-status` call fails, added an explicit `source` (document/entity) field to `GraphNode` so the UI cannot navigate to AI-derived entities, and dropped the obsolete `document_chunks` table via migration `0004_drop_document_chunks.sql`. The initial Gauntlet critic `343af9d057904f90bab47a6fd9c6e2e3` and tester `9512ffbbc4fa4a8597abe2add6cb201c` were terminated; fresh critic `eba378a4e69245b6aab275a5fadc8f99` and end-to-end tester `e676947454264a56a348f22124016e81` are reviewing the updated branch.
+**Decisive gap**: None.
+**Changes**: `apps/ai/src/main.py`, `apps/ai/requirements.txt`, `apps/api/src/ai.ts`, `apps/api/src/ask.ts`, `apps/api/src/search.ts`, `apps/api/src/graph.ts`, `apps/api/src/documents.ts`, `apps/api/src/propose.ts`, `apps/api/src/migrations/0004_drop_document_chunks.sql`, `apps/api/test/setup.ts`, `apps/api/test/propose.test.ts`, `apps/api/test/resilience.test.ts`, `apps/api/test/auth.test.ts`, `apps/api/test/integration.test.ts`, `apps/api/test/rate-limit.test.ts`, `apps/api/test/attachments.test.ts`, `apps/web/app/workspaces/[id]/graph/page.tsx`, `apps/web/app/workspaces/[id]/_components/GraphView.tsx`, `apps/web/lib/api.ts`, `apps/web/lib/graph.ts`, `.env.example`, `docs/DECISIONS.md` (AD-003, AD-019, AD-021), `docs/WORKSTREAMS.md`, `docs/GAUNTLET_LOG.md`.
+**Regressions**: The end-to-end tester later found a release-blocking regression: editing a note produced a failed `dup-*` LightRAG document because `POST /index` reused the same `file_path` without deleting the previous record.
+**Blockers**: None.
+
+## Round 2.1 — LightRAG index update regression fix
+
+**Date**: 2026-08-13
+**Coordinator**: Devin
+**Verdict**: PASS — release-blocking regression fixed and all gates green; awaiting fresh critic/tester.
+- The fresh end-to-end tester on `devin/pkm-lightrag-coord` found that editing `cat.md` caused LightRAG to fail with `File name already exists` and left a failed `dup-*` document; `/ask` then could not answer questions about the newly added content.
+- Root cause: `apipeline_enqueue_documents` treats a repeated `file_path` as a duplicate and refuses to overwrite an existing document.
+- Fix: `apps/ai/src/main.py` `POST /index` now calls `rag.adelete_by_doc_id(document_id)` before enqueuing the new content. `not_found` is ignored; `not_allowed` or other failures surface as HTTP 503/500.
+- Re-verified locally: create `cat.md`, `/ask` about cats, edit `cat.md` to add "They eat meat and fish.", `/ask` "What do cats eat?" returns the updated snippet, `/index-status` shows one document and zero failed documents.
+- Re-ran `pnpm -r typecheck`, `pnpm -r lint`, `pnpm -r build`, `pnpm -r test`, `RUN_RESILIENCE_TESTS=1 pnpm --filter @pkm/api test:resilience`, and `pnpm audit --prod`; all pass.
+**Evidence**: `pnpm -r typecheck`, `pnpm -r lint`, `pnpm -r build`, `pnpm -r test`, and `pnpm --filter @pkm/api test:resilience` pass; `pnpm audit --prod` reports no known vulnerabilities; local `curl` smoke confirms update → `/ask` reflects new content and `failed_document_count` stays 0.
+**Decisive gap**: None.
+**Changes**: `apps/ai/src/main.py`, `docs/DECISIONS.md`, `docs/GAUNTLET_LOG.md`, `docs/WORKSTREAMS.md`.
+**Regressions**: None.
+**Blockers**: None.
+
+## Round 2.2 — Gauntlet critic verdict: LightRAG integration PASS
+
+**Date**: 2026-08-12
+**Critic**: Devin
+**Verdict**: PASS — no release blockers identified on `devin/pkm-lightrag-coord` at `1b56c3f`.
+- Re-ran the Gauntlet quality suite from a clean checkout of the branch: `pnpm -r typecheck`, `pnpm -r lint`, `pnpm -r build`, `pnpm -r test`, and `pnpm audit --prod` all pass.
+- Re-ran the resilience suite: `RUN_RESILIENCE_TESTS=1 pnpm --filter @pkm/api test test/resilience.test.ts` passes 6/6 (Postgres, Redis, MinIO restart recovery; bulk workspace isolation; failed AI indexing recovery).
+- Brought up the full Docker Compose stack (`docker compose up -d --wait`) and verified all services (`postgres` image `pgvector/pgvector:pg16`, Redis, MinIO, Temporal) report healthy.
+- Started the real `apps/ai` FastAPI service (`EMBEDDING_PROVIDER=stub`, no LLM configured) and `apps/api`, then exercised the running endpoints with `curl`:
+  - Created two workspaces, each with a Markdown note; confirmed `/search` returns only the current workspace's note and `/ask` returns only the current workspace's citations.
+  - Edited a note and confirmed `/ask` returns the updated snippet and `/index-status` stays at one document with `failed_document_count: 0`.
+  - Confirmed `/ask` no-LLM fallback returns grounded snippets plus the warning `"No LLM is configured. The answer is a summary of the most relevant note snippets."`.
+  - Confirmed `/graph` returns merged manual wikilink nodes/edges and the web graph page renders without accessibility violations (`apps/web/scripts/axe-audit.js` passed).
+- Inspected the running Postgres database:
+  - `document_chunks` table does not exist; `0004_drop_document_chunks.sql` has removed the legacy table.
+  - LightRAG-created tables (`lightrag_doc_status`, `lightrag_doc_full`, `lightrag_doc_chunks`, `lightrag_vdb_chunks_*`, `lightrag_graph_nodes`, `lightrag_graph_edges`) include a `workspace` column and are keyed/partitioned on `(workspace, id)`, with counts grouped by the workspace UUID proving no cross-workspace leakage.
+  - `lightrag_doc_status.content_hash` matches the canonical `documents.content_hash` for each indexed note.
+  - `process_options` in `lightrag_doc_status.metadata` is `"F!"` when no LLM is configured, so KG extraction is skipped and `lightrag_graph_nodes`/`lightrag_graph_edges` remain empty.
+- Verified code-level evidence for all focus areas:
+  - `apps/ai/src/main.py` creates per-workspace `LightRAG` instances with `kv_storage="PGKVStorage"`, `vector_storage="PGVectorStorage"`, `doc_status_storage="PGDocStatusStorage"`, `graph_storage="PGTableGraphStorage"`, `workspace=workspace_id`.
+  - `apps/ai/requirements.txt` pins `lightrag-hku==1.5.6` and `numpy==2.2.6`; no Apache AGE or Neo4j dependency was introduced.
+  - `apps/api/src/search.ts`, `apps/api/src/ask.ts`, `apps/api/src/graph.ts`, and `apps/api/src/propose.ts` delegate to the AI service; `apps/api/src/documents.ts` preserves canonical Markdown and `content_hash` and treats indexing failures as best-effort projections.
+  - `apps/web/app/workspaces/[id]/graph/page.tsx` contains `if (node.source === 'entity' || node.type === 'entity') return;` to prevent navigating on AI-derived entity nodes.
+  - API and AI service logs do not contain note bodies, prompts, or secrets.
+- Documentation review: `docs/DECISIONS.md` AD-003 accurately records the LightRAG/Postgres decision; `docs/WORKSTREAMS.md` and `docs/GAUNTLET_LOG.md` are updated by this round.
+
+**Evidence**: command outputs captured in session; `curl` smoke and DB inspection reproduced locally; `apps/web/scripts/axe-audit.js` reports no critical/serious violations on `/`, `/login`, editor, `/ask`, `/diff`, `/attachments`, `/graph`, and `/okf`.
+**Decisive gap**: None. The AI entity-node click guard and full LLM-driven entity graph were not exercisable without a live LLM, but the guard code is unambiguous.
+**Changes**: `docs/GAUNTLET_LOG.md`, `docs/WORKSTREAMS.md`.
+**Regressions**: None.
+**Blockers**: None.

@@ -33,8 +33,17 @@ dialect; embeddings could migrate to a dedicated vector store later.
 
 ## AD-003: Semantic graph and retrieval — LightRAG
 
-**Decision**: Use LightRAG for entity extraction, semantic retrieval, and the
-derived knowledge graph, backed by PostgreSQL.
+**Decision**: Use `lightrag-hku==1.5.6` for entity extraction, semantic
+retrieval, and the derived knowledge graph, backed by PostgreSQL with the
+`pgvector` extension. Each workspace uses a dedicated `LightRAG` instance whose
+`workspace` parameter is set to the workspace UUID, enforcing strict tenant
+isolation in all storage tables. Instances are cached with LRU eviction and
+`finalize_storages()` is awaited before eviction. Storage backends are
+`PGKVStorage`, `PGVectorStorage`, `PGTableGraphStorage`, and
+`PGDocStatusStorage`; no Apache AGE or Neo4j extension is required.
+`POST /index` deletes an existing LightRAG document by its PKM `document_id`
+before enqueuing the new revision, because LightRAG treats a repeated
+`file_path` as a duplicate and refuses to overwrite the previous record.
 
 **Alternatives**: Building a custom graph/RAG pipeline.
 
@@ -44,7 +53,9 @@ backends. The application treats LightRAG records as projections of canonical
 Markdown.
 
 **Reversibility**: High. The canonical document store is independent of LightRAG
-schema.
+schema. The previous pgvector/tsvector `document_chunks` table has been
+removed from the API ingestion path and dropped by migration `0004_drop_document_chunks.sql`;
+canonical documents and wikilink edges remain untouched.
 
 ## AD-004: Collaborative editing — Yjs + Hocuspocus
 
@@ -251,15 +262,15 @@ different layout for that view.
 
 **Reversibility**: High. Accessibility additions are additive CSS/ARIA/labels and can be revised independently; the axe script is an isolated dev dependency.
 
-## AD-019: Failed AI index status surfaced without a schema migration
+## AD-019: Failed AI index status surfaced via LightRAG `doc_status`
 
-**Decision**: Derive a per-document `failed` flag and a workspace `failed_document_count` from the existing `document_chunks` table: a document is failed when it has chunks but none have an `embedding`. The workspace count uses a `COUNT(DISTINCT ...)` expression over chunks with `embedding IS NULL`.
+**Decision**: The per-document `failed` flag and workspace `failed_document_count` are derived from LightRAG's `PGDocStatusStorage` (`LIGHTRAG_DOC_STATUS` table) returned by `GET /index-status/{workspace}`. A document is `failed` when LightRAG reports its status as `FAILED` or when the AI service is unreachable during status lookup. The workspace `failed_document_count` is the count of distinct documents in that workspace with `status = 'FAILED'`. The legacy `document_chunks` table is removed by migration `0004_drop_document_chunks.sql`.
 
-**Alternatives**: Add a dedicated `index_status` column to `documents`; add a separate `index_failures` table; treat missing embeddings as stale rather than failed.
+**Alternatives**: Add a dedicated `index_status` column to `documents`; add a separate `index_failures` table; compute failed state solely inside the AI service and expose it only through `getLightRAGIndexStatus`.
 
-**Evidence**: `safeEmbedChunks` already catches embedding failures and inserts chunks with `embedding = NULL` while still recording the new `content_hash`. Existing `stale` detection only compares hashes, so a failed re-index looks current. Computing `failed` from existing rows exposes the failure without a migration, preserves the projection/canonical boundary, and lets the workspace and per-document status panels show a distinct failed state.
+**Evidence**: LightRAG tracks per-document chunk processing status, and `apps/ai/src/main.py` exposes it through `/index-status`. `apps/api/src/documents.ts` calls `getLightRAGIndexStatus` and maps `FAILED` to `failed: true`. If the AI service is unreachable, `getDocumentIndexStatus` conservatively reports `failed: true` because the projection cannot be verified. This preserves the projection/canonical boundary, exposes stale/failed indexes, and lets the workspace and per-document status panels show a distinct failed state. Dropping `document_chunks` cleans up the obsolete pgvector-only pipeline and is safe because LightRAG owns its own storage tables.
 
-**Reversibility**: High. The flag is computed at query time; adding a persisted status column later is additive and can be backfilled from the same rule.
+**Reversibility**: High. The flag is computed at query time from LightRAG status; adding a persisted status column later is additive and can be backfilled from the same rule.
 
 ## AD-020: MinIO included in the API health endpoint
 
@@ -271,12 +282,12 @@ different layout for that view.
 
 **Reversibility**: High. The health function is isolated in `apps/api/src/index.ts`; removing or replacing the MinIO probe is a single-line change.
 
-## AD-021: AI-proposed edit endpoint reuses the existing `generateAnswer` pipeline with a structured JSON prompt
+## AD-021: AI-proposed edit endpoint calls LightRAG-backed `askWithLightRAG`
 
-**Decision**: Implement `POST /workspaces/:workspaceId/propose` in `apps/api/src/propose.ts` and wire it into `apps/api/src/app.ts`. The service resolves the target note by `documentId` or `path` within the workspace, gathers workspace-scoped context from the target note and `hybridSearch`, and calls `generateAnswer` (which forwards to the Python AI service) with a prompt that asks for a JSON object containing `path`, `content`, and `explanation`.
+**Decision**: Implement `POST /workspaces/:workspaceId/propose` in `apps/api/src/propose.ts` and wire it into `apps/api/src/app.ts`. The service resolves the target note by `documentId` or `path` within the workspace, gathers workspace-scoped context from the target note and `searchDocuments` (`POST /query` on the AI service), and calls `askWithLightRAG` (which forwards to the Python `/ask` endpoint) with a prompt that asks for a JSON object containing `path`, `content`, and `explanation`.
 
-**Alternatives**: Add a new AI service endpoint (`/propose`) with a dedicated system prompt; implement a separate model-calling path in `apps/api`; call the LLM directly from the web frontend.
+**Alternatives**: Add a dedicated AI service endpoint `/propose` with a system prompt; implement a separate model-calling path in `apps/api`; call the LLM directly from the web frontend.
 
-**Evidence**: Reusing `generateAnswer` keeps provider selection, API-key handling, timeout, and URL configuration in one place (`apps/api/src/ai.ts`). The structured JSON prompt is a question string, and the Python `/ask` endpoint's system prompt already instructs the model to refuse embedded commands and not reveal secrets. Returning `{ originalPath, proposedPath, originalContent, proposedContent, explanation, citations }` lets the frontend render a side-by-side diff without mutating canonical Markdown until the user explicitly applies the change. The response is parsed and validated (`parseCanonical`, path-traversal guard) before it is returned, so malformed or unsafe proposals are surfaced as `400`/`422` before they ever reach the editor. Rate limiting for `/propose` is grouped with `/ask` in `apps/api/src/auth.ts`.
+**Evidence**: Reusing `askWithLightRAG` keeps provider selection, API-key handling, timeout, and URL configuration in one place (`apps/api/src/ai.ts`) and uses the same LightRAG retrieval pipeline as `GET /search` and `POST /ask`. The structured JSON prompt is a question string, and the Python `/ask` endpoint's system prompt already instructs the model to refuse embedded commands and not reveal secrets. Returning `{ originalPath, proposedPath, originalContent, proposedContent, explanation, citations }` lets the frontend render a side-by-side diff without mutating canonical Markdown until the user explicitly applies the change. The response is parsed and validated (`parseCanonical`, path-traversal guard) before it is returned, so malformed or unsafe proposals are surfaced as `400`/`422` before they ever reach the editor. Rate limiting for `/propose` is grouped with `/ask` in `apps/api/src/auth.ts`.
 
 **Reversibility**: Medium. The endpoint could be split into a dedicated AI service route later; the API contract (`original*`, `proposed*`, `explanation`, `citations`) would remain unchanged.

@@ -20,7 +20,7 @@ beforeAll(async () => {
 
   await migrate(pool);
   await pool.query(
-    'TRUNCATE users, workspace_members, workspaces, documents, revisions, document_links, document_chunks, attachments CASCADE'
+    'TRUNCATE users, workspace_members, workspaces, documents, revisions, document_links, attachments CASCADE'
   );
   app = await buildApp({ logger: false });
   await registerAuthRoutes(app);
@@ -29,7 +29,7 @@ beforeAll(async () => {
 
 beforeEach(async () => {
   await pool.query(
-    'TRUNCATE users, workspace_members, workspaces, documents, revisions, document_links, document_chunks CASCADE'
+    'TRUNCATE users, workspace_members, workspaces, documents, revisions, document_links CASCADE'
   );
 });
 

@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import NextLink from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { getWorkspace, type Workspace } from '../../../../lib/api';
-import { getWorkspaceGraph, type GraphData } from '../../../../lib/graph';
+import { getWorkspaceGraph, type GraphData, type GraphNode } from '../../../../lib/graph';
 import { useTheme } from '@/components/ThemeProvider';
 import GraphView from '../_components/GraphView';
 
@@ -52,7 +52,8 @@ export default function GraphPage() {
     }
   }, [workspace]);
 
-  function handleNodeClick(node: { id: string; path: string }) {
+  function handleNodeClick(node: GraphNode) {
+    if (node.source === 'entity' || node.type === 'entity') return;
     router.push(`/workspaces/${workspaceId}?doc=${node.id}`);
   }
 
