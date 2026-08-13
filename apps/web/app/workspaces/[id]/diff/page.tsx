@@ -31,7 +31,7 @@ export default function DiffPage() {
   const [applying, setApplying] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const hasParams = Boolean(documentId || instructionParam);
+  const hasBothParams = Boolean(documentId && instructionParam);
 
   useEffect(() => {
     let cancelled = false;
@@ -58,7 +58,7 @@ export default function DiffPage() {
   }, [workspace]);
 
   useEffect(() => {
-    if (!hasParams || !documentId || !instructionParam) return;
+    if (!hasBothParams) return;
     let cancelled = false;
     async function load() {
       setLoading(true);
@@ -77,7 +77,7 @@ export default function DiffPage() {
     return () => {
       cancelled = true;
     };
-  }, [workspaceId, documentId, instructionParam, hasParams]);
+  }, [workspaceId, documentId, instructionParam, hasBothParams]);
 
   async function handlePropose(e: React.FormEvent) {
     e.preventDefault();
@@ -118,16 +118,10 @@ export default function DiffPage() {
     router.push(`/workspaces/${workspaceId}${selectedDocumentId ? `?doc=${selectedDocumentId}` : ''}`);
   }
 
-  const selectedDoc = useMemo(
-    () => documents.find((d) => d.id === selectedDocumentId),
-    [documents, selectedDocumentId]
-  );
-
   const hasChanges = useMemo(() => {
     if (!proposal) return false;
     return proposal.proposedPath !== proposal.originalPath || proposal.proposedContent !== proposal.originalContent;
   }, [proposal]);
-
   return (
     <main id="main-content" className="flex h-screen flex-col bg-background text-foreground" role="main" aria-label="Proposed edit review">
       <header className="flex items-center justify-between border-b border-border bg-card px-4 py-2">
@@ -161,7 +155,7 @@ export default function DiffPage() {
                 value={selectedDocumentId}
                 onChange={(e) => setSelectedDocumentId(e.target.value)}
                 className="mt-1 w-full rounded border border-border bg-card px-3 py-2 text-sm text-foreground"
-                disabled={loading || hasParams}
+                disabled={loading || hasBothParams}
               >
                 <option value="">Select a note…</option>
                 {documents
@@ -186,7 +180,7 @@ export default function DiffPage() {
                 onChange={(e) => setInstruction(e.target.value)}
                 placeholder="Describe the edit you want the AI to propose…"
                 className="mt-1 w-full rounded border border-border bg-card px-3 py-2 text-sm text-foreground"
-                disabled={loading || hasParams}
+                disabled={loading || hasBothParams}
               />
             </div>
 
@@ -291,7 +285,7 @@ export default function DiffPage() {
           </div>
         )}
 
-        {!hasParams && !proposal && !loading && selectedDoc && (
+        {!documentId && !instructionParam && !proposal && !loading && (
           <p className="mx-auto mt-8 max-w-2xl text-center text-sm text-muted-foreground">
             Describe the change you want and click <strong>Propose edit</strong> to review a diff before applying.
           </p>
